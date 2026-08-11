@@ -1,0 +1,75 @@
+version: "0.4.0"
+categories:
+  - name: claude_commands
+    target: .claude/commands
+    templated: false
+    files:
+      - boschifai-api-tests.md
+      - boschifai-defect-report.md
+      - boschifai-gen-api-contract.md
+      - boschifai-gen-component.md
+      - boschifai-gen-e2e.md
+      - boschifai-gen-performance.md
+      - boschifai-gen-storybook.md
+      - boschifai-gen-unit.md
+      - boschifai-review.md
+      - boschifai-test-cases.md
+      - boschifai-test-data.md
+      - boschifai-test-plan.md
+      - boschifai-test-report.md
+      - boschifai-test-strategy.md
+      - boschifai-traceability.md
+
+  - name: claude_skills
+    target: .claude/skills
+    templated: false
+    files:
+      - boschifai-crew/SKILL.md
+      - boschifai-gen-api-contract/SKILL.md
+      - boschifai-gen-component/SKILL.md
+      - boschifai-gen-component-java-event/SKILL.md
+      - boschifai-gen-component-java-rest/SKILL.md
+      - boschifai-gen-component-nextjs-bff/SKILL.md
+      - boschifai-gen-component-php-laravel/SKILL.md
+      - boschifai-gen-e2e/SKILL.md
+      - boschifai-gen-e2e-api-event/SKILL.md
+      - boschifai-gen-e2e-api-nextjs/SKILL.md
+      - boschifai-gen-e2e-api-rest/SKILL.md
+      - boschifai-gen-e2e-mobile/SKILL.md
+      - boschifai-gen-e2e-ui/SKILL.md
+      - boschifai-gen-e2e-ui-sinov8/SKILL.md
+      - boschifai-gen-performance/SKILL.md
+      - boschifai-gen-storybook/SKILL.md
+      - boschifai-gen-unit/SKILL.md
+      - boschifai-gen-unit-flutter/SKILL.md
+      - boschifai-gen-unit-php-laravel/SKILL.md
+      - boschifai-generator/SKILL.md
+      - boschifai-github-conventions/SKILL.md
+      - boschifai-investigator/SKILL.md
+      - boschifai-jira-conventions/SKILL.md
+      - boschifai-monday-conventions/SKILL.md
+      - boschifai-project-template/SKILL.md
+      - boschifai-review-standards/SKILL.md
+      - boschifai-reviewer/SKILL.md
+      - boschifai-test-levels/SKILL.md
+      - boschifai-test-patterns/SKILL.md
+
+  - name: github_prompts
+    target: .github/prompts
+    templated: false
+    files:
+      - boschifai-api-tests.prompt.md
+      - boschifai-defect-report.prompt.md
+      - boschifai-gen-api-contract.prompt.md
+      - boschifai-gen-component.prompt.md
+      - boschifai-gen-e2e.prompt.md
+      - boschifai-gen-performance.prompt.md
+      - boschifai-gen-storybook.prompt.md
+      - boschifai-gen-unit.prompt.md
+      - boschifai-review.prompt.md
+      - boschifai-test-cases.prompt.md
+      - boschifai-test-data.prompt.md
+      - boschifai-test-plan.prompt.md
+      - boschifai-test-report.prompt.md
+      - boschifai-test-strategy.prompt.md
+      - boschifai-traceability.prompt.md

@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Design tokens — adapted from Bosch Technologies'
+   marketing site (bosch-technologies/css/styles.css).
+   That stylesheet is dark-only; here every surface/text/
+   border is a semantic CSS variable so `.dark` on <html>
+   (toggled by ThemeToggle.vue) swaps the whole palette.
+   Brand gold (#b8961c) and the danger/warning/success
+   accents are the same literal values Bosch uses, kept
+   theme-invariant since a brand color shouldn't change
+   between light and dark.
+   ============================================ */
+
+:root {
+    /* Light theme */
+    --color-bg: 249 250 251; /* #f9fafb */
+    --color-surface: 255 255 255; /* #ffffff */
+    --color-surface-alt: 243 244 246; /* #f3f4f6 */
+    --color-border: 229 231 235; /* #e5e7eb */
+    --color-fg: 55 65 81; /* #374151 */
+    --color-fg-strong: 17 24 39; /* #111827 */
+    --color-fg-muted: 107 114 128; /* #6b7280 */
+}
+
+:root.dark {
+    /* Dark theme — mirrors Bosch Technologies' site directly */
+    --color-bg: 0 0 0; /* #000000 */
+    --color-surface: 17 17 17; /* #111111 */
+    --color-surface-alt: 10 10 10; /* #0a0a0a */
+    --color-border: 26 26 26; /* #1a1a1a */
+    --color-fg: 204 204 204; /* #cccccc */
+    --color-fg-strong: 255 255 255; /* #ffffff */
+    --color-fg-muted: 153 153 153; /* #999999 */
+}
+
+body {
+    @apply bg-bg text-fg;
+    transition: background-color 200ms ease, color 200ms ease;
+}
+
+@layer components {
+    /* Soft gold glow on every "box" that uses the border-border utility (panels, table borders,
+       dialogs, inputs, dividers — see `grep -rn "border-border" resources/js`). Same brand gold
+       family as the card-hover shadow token in tailwind.config.js, kept theme-invariant since it
+       sits on top of the border color rather than replacing it, so it reads correctly in both
+       light and dark. Declared in @layer components (not utilities) so any element that also
+       carries a real box-shadow utility, e.g. `shadow-card` on ConfirmDialog.vue, still wins the
+       cascade and keeps its own shadow instead of being overwritten by the glow. */
+    .border-border {
+        box-shadow: 0 0 0 1px rgb(184 150 28 / 0.28), 0 0 18px 1px rgb(184 150 28 / 0.25);
+    }
+
+    /* Stronger gold glow for the terminal-style dark boxes (LiveActivityPanel's live log,
+       GeneratedCodeViewer's code view) — these are always `bg-gray-900` regardless of theme, so
+       the ordinary .border-border glow above (tuned for surfaces that already match the theme)
+       reads as too faint against a light-theme white page. A tighter bright ring plus a wider
+       soft halo pops on both a white and a black page background, since the glow's own color
+       (brand gold) contrasts with either extreme rather than blending into one of them. */
+    .terminal-glow {
+        box-shadow: 0 0 0 1px rgb(184 150 28 / 0.45), 0 0 24px 2px rgb(184 150 28 / 0.4), 0 0 48px 10px rgb(184 150 28 / 0.18);
+    }
+}

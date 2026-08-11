@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "boschifai-cli",
+    "boschifai-core",
+    "boschifai-ai",
+]
+resolver = "2"

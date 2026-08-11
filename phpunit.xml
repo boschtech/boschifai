@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="CACHE_STORE" value="array"/>
+        <!--
+            Confirmed as a real bug via live testing, not a hypothetical: with these commented
+            out (Laravel 11's own scaffold default), PHPUnit inherits DB_CONNECTION/DB_DATABASE
+            from .env — the SAME sqlite file `php artisan serve` and the queue worker use.
+            Running `php artisan test` with RefreshDatabase then migrated:fresh the real dev
+            database mid-session, silently wiping every Run/RepoConfig row that had just been
+            created for manual/UI verification. Uncommented so the test suite is isolated.
+
+            <server>, not just <env>, is load-bearing here — confirmed by tracing the actual
+            failure live, not guessing: docker-compose.yml sets DB_CONNECTION=mysql (and
+            QUEUE_CONNECTION=database) as real container-level environment variables on the
+            `app`/`worker` services, which populates PHP's own $_SERVER superglobal at process
+            startup, before PHPUnit or Laravel ever run. Laravel's env() reads via dotenv's
+            RepositoryBuilder, whose default adapter order checks $_SERVER (ServerConstAdapter)
+            BEFORE the putenv/$_ENV-based adapter — and PHPUnit's <env force="true"> only ever
+            calls putenv()/sets $_ENV, never $_SERVER (see PhpHandler::handleEnvVariables), so
+            it silently loses to the container's real $_SERVER value regardless of `force`.
+            Concretely, this meant `docker compose exec app php artisan test` ran the whole
+            suite against the real MySQL dev database this whole time (RefreshDatabase's
+            migrate:fresh wiping it on every run) — reproducing the exact bug this comment
+            already describes as fixed. That fix only ever worked for bare-host test runs.
+            <server> entries write directly to $_SERVER unconditionally, which is the actual
+            highest-precedence source here — confirmed live: without these, `php artisan test`
+            inside this container resolved `config('database.default')` to `mysql` despite the
+            <env> overrides below; with them, `sqlite`.
+        -->
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <server name="DB_CONNECTION" value="sqlite"/>
+        <server name="DB_DATABASE" value=":memory:"/>
+        <server name="QUEUE_CONNECTION" value="sync"/>
+    </php>
+</phpunit>

@@ -1,0 +1,127 @@
+services:
+  app:
+    container_name: boschifai-app
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    image: boschifai-app
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "8420:8000"
+    networks:
+      - boschifai_net
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: boschifai
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      QUEUE_CONNECTION: database
+    # Runs migrations on every start so a fresh `docker compose up` just works — confirmed
+    # necessary by a real crash caught in testing: the worker (below) failed outright on first
+    # boot because it started before migrations existed, and without `restart:` it just stayed
+    # dead rather than retrying.
+    #
+    # No --isolated flag: confirmed as actively harmful by testing, not just unnecessary.
+    # --isolated acquires a cache-based lock, but on a truly fresh database the cache_locks
+    # table doesn't exist yet either (it's created BY this same migrate run) — a chicken-and-egg
+    # failure on every first boot. Plain `migrate --force` is idempotent (Laravel's own
+    # migrations table tracks what's applied); worst case, this and worker's migrate race on
+    # the very first boot and one loses with a "table already exists" error — `restart:
+    # unless-stopped` retries it, and the second attempt finds migrations already done.
+    # `php -S ... public/index.php` directly, NOT `php artisan serve`: confirmed as a real,
+    # serious bug via a live user report — `artisan serve` re-spawns the actual dev server as a
+    # child process (via Symfony Process) that does NOT correctly inherit this container's
+    # DB_CONNECTION=mysql override, silently falling back to `.env`'s committed `sqlite` default
+    # instead. Every other process in this container (tinker, the worker's queue:work) resolved
+    # `mysql` correctly — only artisan serve's child process didn't. The practical effect: a
+    # requirement submitted through the web UI got written to a completely different database
+    # (the bind-mounted local database.sqlite) than the one `worker` polls for jobs, so the
+    # dispatched job could never be picked up — silent, total pipeline stall, invisible from the
+    # UI. Invoking PHP's built-in server directly (Laravel's own documented alternative to
+    # `artisan serve`) runs as this container's actual main process, so it inherits the
+    # environment normally, same as everything else.
+    #
+    # docker/app/router.php, NOT public/index.php directly: confirmed as a second real bug
+    # caught immediately after the first fix — `artisan serve` doesn't just run the built-in
+    # server, it uses its OWN router script that passes real static files straight through
+    # before falling back to index.php. Pointing PHP's built-in server at index.php directly
+    # removed that passthrough, so requests for the JS/CSS bundles hit routes/web.php's SPA
+    # catch-all instead of the actual files, got back HTML, and the browser refused to execute
+    # it as a module script — a blank page with no visible error. router.php reproduces that
+    # passthrough logic without going through artisan serve's Process wrapper.
+    command: sh -c "php artisan migrate --force && php -S 0.0.0.0:8000 -t public docker/app/router.php"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Runs the actual pipeline jobs — the only service that needs the Docker socket, to spin up
+  # sibling test-runner containers via DockerTestRunner. `app` (web/API) never touches it.
+  # Every target repo is cloned fresh over HTTPS using the connected GitHub account's OAuth
+  # token (see RepoMirrorManager/GithubOAuthService) — no local checkout is mounted here.
+  worker:
+    container_name: boschifai-worker
+    image: boschifai-app # same image as `app` — just a different command
+    restart: unless-stopped
+    # Runs its own migrate (see app's command comment above for why no --isolated) before
+    # polling. RepoConfig rows now come exclusively from the "Connect GitHub" OAuth flow —
+    # nothing left to seed here.
+    command: sh -c "php artisan migrate --force && php artisan queue:work --tries=1"
+    volumes:
+      - .:/var/www/html
+      # Docker-outside-of-Docker: lets this container ask the HOST daemon to run a sibling
+      # test-runner container. This container is never given a Docker daemon of its own.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - boschifai_net
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: boschifai
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      QUEUE_CONNECTION: database
+      # Compose resolves `.` (this compose file's directory) to an absolute host path even
+      # though the container only ever sees it as /var/www/html — ${PWD} at `docker compose up`
+      # time gives that same host path back, which is what DockerTestRunner needs to hand to
+      # the HOST docker daemon (see config/boschifai.php's docker.host_var_path docblock).
+      BOSCHIFAI_HOST_VAR_PATH: ${PWD}/var/boschifai
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0.32
+    container_name: boschifai-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: boschifai
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - boschifai_dbdata:/var/lib/mysql
+    networks:
+      - boschifai_net
+
+networks:
+  boschifai_net:
+    driver: bridge
+
+volumes:
+  boschifai_dbdata:
+    driver: local
+  # Named volume for Composer's cache only — shared between this app's own `composer install`
+  # and every throwaway test-runner container DockerTestRunner spins up, so repeated runs hit
+  # cache instead of re-downloading. Not used for the worktree filesystem itself (that's a bind
+  # mount, translated via host_var_path — see above).
+  boschifai_composer_cache:
+    driver: local

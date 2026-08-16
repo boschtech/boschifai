@@ -5,16 +5,23 @@ testability score, and — after a human approves — generates a test plan, tes
 PHPUnit Feature test code, runs it locally, and (after a second human approval) opens a real
 GitHub pull request and reports back a composite confidence score once CI concludes.
 
-**MVP scope:** one test type (PHPUnit Feature tests) only. Target repos are connected entirely
-through the in-app "Connect GitHub" OAuth flow (`resources/js/pages/GithubSettingsPage.vue`) —
-there is no hardcoded or locally-checked-out repo; every `RepoConfig` row is either linked to a
-connected GitHub account or unusable. See `app/Enums/RunState.php` for the full pipeline state
-machine and `config/boschifai.php` for every configurable knob.
+**MVP scope:** one test type (PHPUnit Feature tests) only. Target repos are connected via
+"Connect Repo" (`resources/js/pages/GithubSettingsPage.vue`) — either a GitHub account's repos
+(OAuth), or a repo already checked out on disk. Each connected repo gets exactly ONE persistent
+checkout that every Run against it shares (see `app/Services/Sandbox/RepoCheckoutManager.php`) —
+a GitHub-connected repo is cloned into `var/boschifai/repos/<name>` and kept in sync per run; a
+local repo is used directly at its own path and is never cloned, reset, or otherwise modified in
+place. Because the checkout is shared, only one Run per repo may be in flight at a time
+(`RunController::store()` rejects a second one with a 422). See `app/Enums/RunState.php` for the
+full pipeline state machine and `config/boschifai.php` for every configurable knob.
 
 Generation is done by driving **headless Claude Code** (`claude -p "/boschifai-review ..."` etc.)
-against the real `.claude/commands/boschifai-*.md` prompts inside an isolated `git worktree` of the
-target repo — not by calling the `boschifai` CLI, which does not perform real AI generation for its
-local-file commands (see the class docblocks under `app/Services/ClaudeRunner/` for why).
+against the real `.claude/commands/boschifai-*.md` prompts inside that checkout — not by calling
+the `boschifai` CLI, which does not perform real AI generation for its local-file commands (see
+the class docblocks under `app/Services/ClaudeRunner/` for why). The generated test is then run
+directly in that same checkout via the worker's own PHP/Composer — no Docker, no per-repo
+test-runner image (see `app/Services/TestExecution/LocalTestRunner.php`); this only works because
+every connected repo is assumed PHPUnit/Laravel-shaped, matching this MVP's own scope.
 
 ## Prerequisites
 
@@ -34,12 +41,10 @@ into this repo at `docker/boschifai-cli/` and built as part of the image).
   itself doesn't do the generation. Docker mode builds this for you automatically; bare-host
   mode does not.
 - A registered GitHub OAuth App (`BOSCHIFAI_GITHUB_OAUTH_CLIENT_ID`/`_SECRET`, see
-  `.env.example`) — target repos are cloned fresh over HTTPS via a connected GitHub account's
-  OAuth token, so no local checkout of any target repo is needed
-- Docker, only if you want to exercise the local test-execution step (`DockerTestRunner`) —
-  required either way, since even bare-host mode shells out to `docker run <that repo's own
-  configured image>` (see `RepoConfig.docker_image`, set per repo in "Connect GitHub"'s repo
-  picker)
+  `.env.example`) — only needed for the GitHub-connected half of "Connect Repo"; connecting a
+  repo already checked out on disk needs no OAuth App at all
+- Whatever a connected repo's own test suite needs at runtime (its own `composer install` +
+  `php artisan test`, run directly against the checkout — see `LocalTestRunner`)
 
 ## Setup
 
@@ -104,8 +109,8 @@ docker compose up -d --build
 
 That's it — `app` and `worker` each run their own `php artisan migrate --force` on every
 start (idempotent, safe if both race on first boot; `restart: unless-stopped` retries the
-rare loser). No seeding: visit `http://localhost:8420`, use "Connect GitHub" to authorize an
-account, then pick repos and give each one a Docker test-runner image in the repo picker.
+rare loser). No seeding: visit `http://localhost:8420`, use "Connect Repo" to authorize a
+GitHub account (or browse to a repo already checked out on disk) and pick repos.
 
 The Dockerfile **compiles a Linux `boschifai` from source** as a build stage (`docker/app/Dockerfile`'s
 `boschifai-builder` stage, source vendored at `docker/boschifai-cli/`) — a `boschifai` binary built for your host is
@@ -118,33 +123,28 @@ Set these in `.env` before building (see `.env.example` for the full list with e
   (there's no interactive login possible there). Get one from the Claude Console.
 - `BOSCHIFAI_GITHUB_OAUTH_CLIENT_ID` / `BOSCHIFAI_GITHUB_OAUTH_CLIENT_SECRET` — identify this
   app's GitHub OAuth App (a one-time, out-of-band registration — see `.env.example`'s comment
-  for the exact steps). Without these, "Connect GitHub" 422s immediately with a clear message.
+  for the exact steps). Without these, connecting via GitHub 422s immediately with a clear
+  message — connecting a local repo doesn't need these at all.
+- `BOSCHIFAI_LOCAL_REPOS_ROOT` — the host directory "Connect Repo"'s local-filesystem section
+  is allowed to browse (bind-mounted read-only into `app`/`worker`).
 
-### How the worker talks to Docker for local test execution
+### Local test execution
 
-`DockerTestRunner` runs whatever image is set on the target repo's own `RepoConfig.docker_image`
-(configured per repo in "Connect GitHub"'s repo picker) against a generated test file — build/
-pull that image separately first; boschifai doesn't build it for you.
-
-The `worker` container is given the **Docker CLI only, not a daemon** (Docker-outside-of-Docker):
-`/var/run/docker.sock` is bind-mounted in, so a `docker run <repo's image> ...` issued from
-inside `worker` is actually scheduled by your **host's** Docker daemon, spinning up that image
-as a sibling container next to `worker`, not nested inside it. This is why
-`BOSCHIFAI_HOST_VAR_PATH` exists (set automatically to `${PWD}/var/boschifai` in
-`docker-compose.yml`) — any `-v <path>:...` in that `docker run` command has to be a path the
-**host** daemon understands, not the container-internal path `worker` itself sees. See
-`config/boschifai.php`'s `docker.host_var_path` docblock and
-`DockerTestRunner::dockerVisiblePath()` if you're touching this.
+`LocalTestRunner` runs `composer install && php artisan test` directly against the run's repo
+checkout, using the `worker` container's own PHP/Composer — no Docker, no per-repo test-runner
+image, no Docker-outside-of-Docker socket. This is deliberate, not a fallback: every connected
+repo is assumed PHPUnit/Laravel-shaped (this MVP's own scope), so the same toolchain `worker`
+already needs to run Boschifai itself is sufficient for the target repo too.
 
 ### `auth.json` and other gitignored files
 
 A private Composer package pulled over SSH and authenticated via a gitignored `auth.json` is a
 real, previously-hit failure mode — like `.claude/commands`, such files are invisible to a fresh
-`git worktree` (git only carries tracked files), and `composer install` fails inside the
-throwaway test-runner container without them. `WorktreeManager` copies whatever's listed in a
-`RepoConfig` row's own `copy_untracked_files` column from `git_remote_path` into every new
-worktree. There's no UI for this yet — set it directly on the row (`php artisan tinker`) if a
-connected repo needs it.
+GitHub-connected checkout (git only carries tracked files), and `composer install` fails without
+them. `RunWorkspaceManager` copies whatever's listed in a `RepoConfig` row's own
+`copy_untracked_files` column from `git_remote_path` into the checkout (a no-op for a local repo,
+whose checkout already has these files for real). There's no UI for this yet — set it directly on
+the row (`php artisan tinker`) if a connected repo needs it.
 
 ## Troubleshooting
 
@@ -197,10 +197,11 @@ a clear error rather than pretending to succeed:
 
 - `app/Models` / `database/migrations` — the Run state machine and its related records
   (steps, Claude invocations, artifacts, human approvals, execution/CI results)
-- `app/Services/Sandbox` — per-run git worktree management
+- `app/Services/Sandbox` — per-repo checkout management (clone/fetch for GitHub-connected repos,
+  a no-op for local ones) and per-run workspace prep (`boschifai init`, untracked-file copying)
 - `app/Services/ClaudeRunner` — headless Claude Code invocation, prompt building, transcript parsing
 - `app/Services/ArtifactCollection` — git-status-diff based artifact discovery, testability score parsing
-- `app/Services/TestExecution` — local Docker-based PHPUnit execution
+- `app/Services/TestExecution` — local PHPUnit execution, directly via the worker's own PHP/Composer
 - `app/Services/Github` — branch/commit/PR/CI-polling
 - `app/Services/Confidence` — the composite confidence score calculator
 - `app/Jobs` — one queued job per pipeline stage

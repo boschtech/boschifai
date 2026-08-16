@@ -15,8 +15,12 @@ class RepoConfigResource extends JsonResource
             'name' => $this->name,
             'display_name' => $this->display_name,
             'base_branch' => $this->base_branch,
-            'has_docker_image' => filled($this->docker_image),
             'connected_via_github' => $this->github_connection_id !== null,
+            // Populated for both GitHub-connected repos (the real GitHub org/user login) and
+            // local ones (see LocalRepoController — currently always null there, since a local
+            // checkout has no "organisation" concept) — used to group the "Connected
+            // organisations" summary on the Connect Repo page.
+            'github_owner' => $this->github_owner,
         ];
     }
 }

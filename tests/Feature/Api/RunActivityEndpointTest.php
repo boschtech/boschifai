@@ -64,13 +64,20 @@ class RunActivityEndpointTest extends TestCase
         $response = $this->getJson("/api/runs/{$run->id}/activity")->assertOk();
 
         $response->assertJson(['phase' => 'running', 'step_key' => 'local_execution']);
-        $this->assertStringContainsString('Docker', $response->json('message'));
+        $this->assertStringContainsString('composer install', $response->json('message'));
         $this->assertSame([], $response->json('log_lines'));
         $this->assertGreaterThanOrEqual(12, $response->json('elapsed_seconds'));
     }
 
-    public function test_a_running_local_execution_step_tails_its_real_docker_output_log(): void
+    public function test_a_running_local_execution_step_tails_its_real_output_log(): void
     {
+        // logPathFor() lives on the shared jobs volume that only the `test-runner` sidecar and
+        // `worker` can write to (`app`, which serves this endpoint, mounts it read-only — see
+        // docker-compose.yml's `test-runner` service comment) — pointed at a writable temp dir
+        // here so this test doesn't depend on which container happens to run the suite.
+        $jobsDir = sys_get_temp_dir().'/boschifai-jobs-test-'.uniqid();
+        config(['boschifai.test_runner.jobs_path' => $jobsDir]);
+
         $run = $this->makeRun(RunState::LocalExecutionRunning);
         $run->steps()->create([
             'key' => 'local_execution',
@@ -78,7 +85,7 @@ class RunActivityEndpointTest extends TestCase
             'started_at' => now()->subSeconds(20),
         ]);
 
-        $logPath = app(\App\Services\TestExecution\DockerTestRunner::class)->logPathFor($run->id);
+        $logPath = app(\App\Services\TestExecution\LocalTestRunner::class)->logPathFor($run->id);
         \Illuminate\Support\Facades\File::ensureDirectoryExists(dirname($logPath));
         \Illuminate\Support\Facades\File::put($logPath, "Installing dependencies...\n\nRunning phpunit...\nPASS  CustomFieldControllerTest\n");
 
@@ -90,7 +97,7 @@ class RunActivityEndpointTest extends TestCase
             $response->json('log_lines')
         );
 
-        \Illuminate\Support\Facades\File::deleteDirectory(dirname($logPath));
+        \Illuminate\Support\Facades\File::deleteDirectory($jobsDir);
     }
 
     public function test_a_running_claude_step_tails_its_real_transcript(): void

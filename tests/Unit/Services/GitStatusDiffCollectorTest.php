@@ -37,16 +37,28 @@ class GitStatusDiffCollectorTest extends TestCase
     {
         return [
             'testability review' => ['.boschifai/testability_review_custom-field.md', ArtifactKind::TestabilityReview],
+            'codebase knowledge base' => ['.boschifai/codebase_knowledge_base_custom-field.md', ArtifactKind::CodebaseKnowledgeBase],
             'test plan' => ['.boschifai/test_plan_custom-field.md', ArtifactKind::TestPlan],
             'test cases md' => ['.boschifai/test_cases_custom-field.md', ArtifactKind::TestCasesMarkdown],
             'test cases json' => ['.boschifai/test_cases_custom-field.json', ArtifactKind::TestCasesJson],
-            'generated feature test' => ['tests/Feature/CustomFieldControllerTest.php', ArtifactKind::GeneratedTestPhp],
-            'generated unit test' => ['tests/Unit/CustomFieldServiceTest.php', ArtifactKind::GeneratedTestPhp],
+            'generated feature test' => ['tests/Feature/CustomFieldControllerTest.php', ArtifactKind::GeneratedTest],
+            'generated unit test' => ['tests/Unit/CustomFieldServiceTest.php', ArtifactKind::GeneratedTest],
+            // Coverage mode's multi-language support (plan's "full polyglot" scope decision) —
+            // each pattern is that ecosystem's own de facto test-discovery convention.
+            'generated java junit test' => ['src/test/java/com/acme/BillingServiceTest.java', ArtifactKind::GeneratedTest],
+            'generated jest test' => ['src/components/Billing.test.js', ArtifactKind::GeneratedTest],
+            'generated vitest spec (ts)' => ['src/components/Billing.spec.ts', ArtifactKind::GeneratedTest],
+            'generated pytest test_ prefix' => ['tests/test_billing.py', ArtifactKind::GeneratedTest],
+            'generated pytest _test suffix' => ['tests/billing_test.py', ArtifactKind::GeneratedTest],
+            'generated flutter test' => ['test/billing_test.dart', ArtifactKind::GeneratedTest],
             'unrelated boschifai-init scaffolding' => ['.claude/commands/boschifai-review.md', null],
             'unrelated repo file' => ['app/Http/Controllers/CustomFieldController.php', null],
             // Confirms a php file outside tests/Feature|Unit is never misclassified as generated —
             // a stray edit anywhere else in the worktree must never be picked up as an artifact.
             'php file outside tests dir' => ['app/SomeTest.php', null],
+            // A Java class that merely ends in "Test.java" outside src/test/java is a real class
+            // name (e.g. a ContractTest value object), not a generated test.
+            'java class outside src/test/java' => ['src/main/java/com/acme/ContractTest.java', null],
         ];
     }
 

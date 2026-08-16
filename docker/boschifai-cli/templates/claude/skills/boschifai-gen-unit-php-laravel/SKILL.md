@@ -29,7 +29,7 @@ Laravel base test classes and available helpers differ between projects even whe
 
 ## What Counts as a Unit Test Here
 
-A **unit test** in these codebases exercises a single class or service method with all collaborators mocked — no HTTP kernel, no route resolution, no real database rows beyond what a plain PHPUnit `TestCase` needs. If the code under test needs `actingAs()`, `getJson()`/`postJson()`, or asserts on HTTP status codes, it belongs in `tests/Feature/` — use `boschifai-gen-component-php-laravel` instead.
+A **unit test** in these codebases exercises a single class or service method with all collaborators mocked — no HTTP kernel, no route resolution, no real database rows beyond what a plain PHPUnit `TestCase` needs. If the code under test needs `actingAs()`, `getJson()`/`postJson()`, or asserts on HTTP status codes, it belongs in `tests/Feature/` — use `boschifai-gen-feature-php-laravel` instead.
 
 | Scenario | Unit Test | Feature Test Instead |
 |----------|-----------|----------------------|
@@ -173,7 +173,7 @@ Never use `Mockery::mock()` on a class you don't own without an interface/contra
 
 ## What NOT to Unit Test
 
-- Anything requiring `actingAs()` or route resolution — that's a Feature test (`boschifai-gen-component-php-laravel`)
+- Anything requiring `actingAs()` or route resolution — that's a Feature test (`boschifai-gen-feature-php-laravel`)
 - Laravel framework internals (Eloquent relation mechanics, validation rule internals)
 - Trivial getters/casts with no branching
 - The `RedRabbitService`/RAMS-sync classes' actual HTTP calls — mock the client, test the service logic only (see `RedRabbitApi/RedRabbitServiceAssetTest.php` for the existing pattern)

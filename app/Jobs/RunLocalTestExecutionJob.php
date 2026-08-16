@@ -8,8 +8,8 @@ use App\Enums\RunStepStatus;
 use App\Models\Run;
 use App\Models\RunStep;
 use App\Services\Pipeline\CancellationChecker;
-use App\Services\Sandbox\WorktreeManager;
-use App\Services\TestExecution\DockerTestRunner;
+use App\Services\Sandbox\RunWorkspaceManager;
+use App\Services\TestExecution\LocalTestRunner;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -18,9 +18,9 @@ class RunLocalTestExecutionJob implements ShouldQueue
 {
     use Queueable;
 
-    // DockerTestRunner itself waits up to 900s (composer install + phpunit) — see
+    // LocalTestRunner itself waits up to 900s (composer install + phpunit) — see
     // RunTestCaseGenerationJob's $timeout comment for why the worker-level override matters.
-    // Must stay above DockerTestRunner's own $timeoutSeconds, same reasoning as
+    // Must stay above LocalTestRunner's own $timeoutSeconds, same reasoning as
     // RunCodeGenerationJob's $timeout vs. boschifai.claude.timeouts.code_generation.
     public int $timeout = 1000;
 
@@ -30,7 +30,7 @@ class RunLocalTestExecutionJob implements ShouldQueue
     {
     }
 
-    public function handle(WorktreeManager $worktrees, DockerTestRunner $runner, CancellationChecker $cancellation): void
+    public function handle(RunWorkspaceManager $workspace, LocalTestRunner $runner, CancellationChecker $cancellation): void
     {
         $run = Run::findOrFail($this->runId);
 
@@ -48,9 +48,10 @@ class RunLocalTestExecutionJob implements ShouldQueue
         try {
             $result = $runner->run(
                 $run,
-                $worktrees->path($run),
+                $workspace->path($run),
                 $run->generated_file_path,
                 fn () => $cancellation->isRequested($run->id),
+                $run->execution_recipe,
             );
         } catch (\Throwable $e) {
             $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage()]);

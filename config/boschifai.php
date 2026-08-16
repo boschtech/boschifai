@@ -7,32 +7,47 @@ return [
     | Sandbox paths
     |--------------------------------------------------------------------------
     |
-    | Mirror clones and per-run worktrees live outside storage/app so they're
-    | never web-served and never picked up by Laravel's own file scanning.
+    | Every GitHub-connected RepoConfig gets one persistent checkout under here (see
+    | RepoCheckoutManager) — outside storage/app so it's never web-served and never picked up by
+    | Laravel's own file scanning. A local-connected RepoConfig doesn't use this at all; it's
+    | worked on directly at its own git_remote_path.
     */
     'var_path' => env('BOSCHIFAI_VAR_PATH', base_path('var/boschifai')),
 
     /*
     |--------------------------------------------------------------------------
-    | Docker-outside-of-Docker (DooD) path translation
+    | Local repository connections
     |--------------------------------------------------------------------------
     |
-    | DockerTestRunner spins up a sibling `rams-app` container via the host's Docker socket
-    | (bind-mounted into this app's own container — see docker-compose.yml). A command issued
-    | over that socket is scheduled by the HOST daemon, so any `-v <path>:...` it contains must
-    | be a HOST filesystem path — the container-internal path this app itself sees (`var_path`
-    | above, e.g. `/var/boschifai`) means nothing to the host daemon.
-    |
-    | When running via docker-compose, BOSCHIFAI_HOST_VAR_PATH must be set to the absolute HOST
-    | path that docker-compose.yml bind-mounts to `var_path` inside the container (Compose
-    | resolves `./var/boschifai` to an absolute host path itself — this just needs to be told
-    | what that resolved path is). Left null for bare-host (non-Docker) runs, where the app's
-    | own filesystem view already *is* the host's, so no translation is needed — this is the
-    | mode already verified end-to-end against the real RAMS repo (see the plan's verification
-    | notes) before Docker support existed.
+    | "Connect Repo"'s local-filesystem section lets a user pick a repo already checked out on
+    | disk instead of going through GitHub OAuth. `root_path` is the ONE directory the browse
+    | endpoint is allowed to look inside (and below) — every browsed/connected path is resolved
+    | with realpath() and rejected if it escapes this root, since this app has no authentication
+    | (see README) and a raw "list any directory" endpoint would otherwise be a real filesystem
+    | disclosure risk to anyone who can reach it. When running via docker-compose, this must be
+    | a container-internal path with a matching bind mount (docker-compose.yml mounts
+    | BOSCHIFAI_LOCAL_REPOS_ROOT from the host to this path) — RepoCheckoutManager and
+    | LocalTestRunner both operate directly inside the `worker` container's own filesystem view,
+    | so no host-path translation is needed anywhere, only this one bind mount.
     */
-    'docker' => [
-        'host_var_path' => env('BOSCHIFAI_HOST_VAR_PATH'),
+    'local_repos' => [
+        'root_path' => env('BOSCHIFAI_LOCAL_REPOS_ROOT_PATH', '/host-repos'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Local test execution (test-runner sidecar)
+    |--------------------------------------------------------------------------
+    |
+    | LocalTestRunner doesn't run a connected repo's own composer/test command itself anymore —
+    | it writes a job file here and polls for the sidecar's result. See docker-compose.yml's
+    | `test-runner` service and docker/test-runner/poll.php for why this lives in a separate,
+    | credential-less container rather than running in `worker` directly (a real incident: a
+    | connected repo's own test suite inherited `worker`'s live DB credentials and wiped
+    | Boschifai's database via `migrate:fresh`).
+    */
+    'test_runner' => [
+        'jobs_path' => env('BOSCHIFAI_TEST_RUNNER_JOBS_PATH', '/var/boschifai-jobs'),
     ],
 
     /*
@@ -62,6 +77,11 @@ return [
             // not a stuck/looping session. 1800s matches this file's own ci_poll_timeout_seconds
             // precedent for "generous ceiling for a genuinely long agentic operation."
             'code_generation' => 1800,  // /boschifai-gen-component
+            'fix_failing_tests' => 900, // scoped to one already-known file, not a full regeneration
+            // Only reached when github_mcp.pat is configured (PushAndOpenPrJob's MCP-based
+            // path) — a handful of MCP tool calls against an already-prepared local commit, not
+            // a full agentic exploration, so this stays far below code_generation's own ceiling.
+            'push' => 300,
         ],
 
         'max_retries' => [
@@ -71,6 +91,28 @@ return [
         // TODO: needs a real dollar figure from engineering/finance before going live —
         // not invented here (see plan §3).
         'max_cost_per_run_usd' => env('BOSCHIFAI_MAX_COST_PER_RUN_USD'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | GitHub MCP server (docker/app/mcp-config.json)
+    |--------------------------------------------------------------------------
+    |
+    | Optional, opt-in: PushAndOpenPrJob only uses the MCP-based push path (a constrained,
+    | code-supervised Claude invocation — see that job) when a PAT is actually configured here;
+    | otherwise it falls back to the original deterministic git-push + REST API flow unchanged.
+    | Deliberately a single static PAT, not this org's existing per-repo GithubOAuthConnection
+    | flow — github-mcp-server authenticates as whatever account owns this token for every
+    | connected repo, so that account needs push + PR permissions on all of them. Never commit a
+    | real value: set GITHUB_MCP_PAT in your own untracked .env (see .env.example).
+    |
+    | TODO: source from AWS SSM Parameter Store at runtime in a real deployment, same as
+    | ANTHROPIC_API_KEY above and rams/CLAUDE.md's own documented secrets pattern — a plain .env
+    | value here is for local dev only.
+    */
+    'github_mcp' => [
+        'pat' => env('GITHUB_MCP_PAT'),
+        'config_path' => '/opt/boschifai/mcp-config.json',
     ],
 
     /*

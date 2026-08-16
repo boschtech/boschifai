@@ -25,7 +25,6 @@ class RunEditLineageTest extends TestCase
         return RepoConfig::create([
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
-            'docker_image' => 'rams-app:latest',
         ]);
     }
 

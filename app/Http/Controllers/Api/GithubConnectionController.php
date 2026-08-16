@@ -6,34 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ConnectGithubRepositoriesRequest;
 use App\Http\Resources\GithubConnectionResource;
 use App\Http\Resources\RepoConfigResource;
+use App\Models\ExcludedGithubOrganization;
 use App\Models\GithubConnection;
 use App\Models\RepoConfig;
 use App\Services\Github\GithubOAuthService;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 class GithubConnectionController extends Controller
 {
-    /**
-     * A single-use nonce (Cache, not session — the `api` middleware group has no session by
-     * default) guarding the redirect-to-GitHub-and-back round trip against a blind link being
-     * used to attach a connection the user never actually initiated from here.
-     */
-    public function authorizeUrl(GithubOAuthService $githubAuth)
-    {
-        abort_unless(
-            config('boschifai.github.oauth_client_id'),
-            422,
-            'GitHub OAuth App is not configured — see config/boschifai.php (github.oauth_client_id).'
-        );
-
-        $state = Str::random(40);
-        Cache::put("github:oauth_state:{$state}", true, now()->addMinutes(10));
-
-        return JsonResource::make(['url' => $githubAuth->authorizeUrl($state)]);
-    }
-
     public function connections()
     {
         return GithubConnectionResource::collection(
@@ -45,28 +24,59 @@ class GithubConnectionController extends Controller
     {
         $repos = $githubAuth->listUserRepositories($connection->access_token);
         $connected = RepoConfig::where('github_connection_id', $connection->id)
-            ->get(['id', 'name', 'docker_image'])
+            ->get(['id', 'name'])
             ->keyBy('name');
+        $excludedOrgs = $connection->excludedOrganizations()->pluck('organization_login');
 
         return response()->json([
-            'data' => collect($repos)->map(function ($r) use ($connected) {
-                $existing = $connected->get($r['name']);
+            'data' => collect($repos)
+                // A "deleted" organisation (ExcludedGithubOrganization) must not just lose its
+                // connected repos — it has to stop being offered at all, or it'd reappear on
+                // every subsequent fetch since GitHub itself has no concept of the deletion.
+                ->reject(fn ($r) => $excludedOrgs->contains(explode('/', $r['full_name'], 2)[0]))
+                ->map(function ($r) use ($connected) {
+                    $existing = $connected->get($r['name']);
 
-                return [
-                    'full_name' => $r['full_name'],
-                    'name' => $r['name'],
-                    'private' => $r['private'],
-                    'default_branch' => $r['default_branch'],
-                    'connected' => $existing !== null,
-                    // Needed so the UI can offer a "remove" action per repo — see
-                    // RepoConfigController::destroy.
-                    'repo_config_id' => $existing?->id,
-                    // Pre-fills the picker's docker-image input on repeat visits, rather than
-                    // forcing it to be re-typed every time the repo list is reopened.
-                    'docker_image' => $existing?->docker_image,
-                ];
-            })->values(),
+                    return [
+                        'full_name' => $r['full_name'],
+                        'name' => $r['name'],
+                        'private' => $r['private'],
+                        'default_branch' => $r['default_branch'],
+                        'connected' => $existing !== null,
+                        // Needed so the UI can offer a "remove" action per repo — see
+                        // RepoConfigController::destroy.
+                        'repo_config_id' => $existing?->id,
+                    ];
+                })->values(),
+            'excluded_organizations' => $excludedOrgs->values(),
         ]);
+    }
+
+    /**
+     * Bulk-removes every repo this connection has under $organization AND remembers the
+     * organisation as excluded, so repositories() stops offering it — see that method's comment.
+     * Reversible via restoreOrganization(), since this is otherwise a one-way door: there's no
+     * other way back in short of disconnecting and re-authorizing the whole GitHub account.
+     */
+    public function excludeOrganization(GithubConnection $connection, string $organization)
+    {
+        RepoConfig::where('github_connection_id', $connection->id)
+            ->where('github_owner', $organization)
+            ->delete();
+
+        ExcludedGithubOrganization::firstOrCreate([
+            'github_connection_id' => $connection->id,
+            'organization_login' => $organization,
+        ]);
+
+        return response()->noContent();
+    }
+
+    public function restoreOrganization(GithubConnection $connection, string $organization)
+    {
+        $connection->excludedOrganizations()->where('organization_login', $organization)->delete();
+
+        return response()->noContent();
     }
 
     public function connectRepositories(ConnectGithubRepositoriesRequest $request, GithubConnection $connection)
@@ -92,7 +102,6 @@ class GithubConnectionController extends Controller
                     'base_branch' => $repo['default_branch'],
                     'github_owner' => $owner,
                     'github_connection_id' => $connection->id,
-                    'docker_image' => $repo['docker_image'] ?? null,
                 ]
             );
         }

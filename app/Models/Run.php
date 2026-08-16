@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RunState;
+use App\Enums\RunType;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,8 +16,11 @@ class Run extends Model
 
     protected $fillable = [
         'repo_config_id',
+        'run_type',
         'requirement_text',
         'target_file_path',
+        'attachment_filenames',
+        'execution_recipe',
         'state',
         'branch_name',
         'pr_number',
@@ -34,16 +38,21 @@ class Run extends Model
         'rejection_comment',
         'created_by',
         'cancel_requested_at',
+        'archived_at',
     ];
 
     protected function casts(): array
     {
         return [
             'state' => RunState::class,
+            'run_type' => RunType::class,
+            'attachment_filenames' => 'array',
+            'execution_recipe' => 'array',
             'confidence_breakdown' => 'array',
             'confidence_score' => 'integer',
             'pr_number' => 'integer',
             'cancel_requested_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

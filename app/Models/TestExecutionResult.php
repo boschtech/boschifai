@@ -15,6 +15,7 @@ class TestExecutionResult extends Model
         'skipped',
         'duration_ms',
         'junit_xml_path',
+        'coverage_report_path',
         'tests',
     ];
 

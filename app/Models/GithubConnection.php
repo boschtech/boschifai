@@ -32,4 +32,9 @@ class GithubConnection extends Model
     {
         return $this->hasMany(RepoConfig::class);
     }
+
+    public function excludedOrganizations(): HasMany
+    {
+        return $this->hasMany(ExcludedGithubOrganization::class);
+    }
 }

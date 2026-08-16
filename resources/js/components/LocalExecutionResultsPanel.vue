@@ -1,14 +1,9 @@
 <template>
     <section>
-        <h2 class="text-sm font-semibold text-fg mb-2">Local execution result</h2>
-        <div class="flex items-center gap-4 rounded-lg border border-border bg-surface p-4">
-            <span class="rounded-full px-3 py-1 text-sm font-semibold" :class="allPassed ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'">
-                {{ result.passed }}/{{ result.total }} passed
-            </span>
-            <span class="text-sm text-fg-muted">{{ result.duration_ms }}ms</span>
-        </div>
-
-        <ul v-if="tests.length" class="mt-3 max-h-[32rem] divide-y divide-border overflow-y-auto rounded-lg border border-border bg-surface">
+        <!-- Pass/fail count, duration, and the coverage-report link moved into the Testability
+             Score box at the top of PushApprovalPanel — this panel is just the per-test detail
+             list now. -->
+        <ul v-if="tests.length" class="max-h-[32rem] divide-y divide-border overflow-y-auto rounded-lg border border-border bg-surface">
             <li v-for="test in tests" :key="test.name" class="flex items-start gap-2 p-3">
                 <svg
                     v-if="test.status === 'passed'"
@@ -52,10 +47,6 @@ export default {
     },
 
     computed: {
-        allPassed() {
-            return this.result.passed === this.result.total;
-        },
-
         tests() {
             return this.result.tests || [];
         },

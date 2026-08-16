@@ -10,9 +10,7 @@ use Tests\TestCase;
 
 /**
  * repo_config_id used to be implicit (hardcoded to the single "rams" row) — now that repos can
- * be connected via the GitHub App flow, it's a real required field, and a repo with no
- * docker_image configured must be rejected here rather than failing confusingly deep inside
- * the pipeline (see RunCreatePage.vue's matching disabled-submit UI state).
+ * be connected via GitHub OAuth or a local checkout, it's a real required field.
  */
 class RunStoreRepoValidationTest extends TestCase
 {
@@ -39,7 +37,7 @@ class RunStoreRepoValidationTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('repo_config_id');
     }
 
-    public function test_a_repo_with_no_docker_image_is_rejected_at_submission_time(): void
+    public function test_a_repo_with_no_other_configuration_is_accepted(): void
     {
         Queue::fake([RunGapAnalysisJob::class]);
 
@@ -52,27 +50,30 @@ class RunStoreRepoValidationTest extends TestCase
             'repo_config_id' => $repo->id,
             'requirement_text' => 'x',
             'target_file_path' => 'x.php',
-        ])->assertStatus(422);
+        ])->assertOk();
 
-        $this->assertDatabaseCount('runs', 0);
+        Queue::assertPushed(RunGapAnalysisJob::class);
     }
 
-    public function test_a_repo_with_a_docker_image_configured_is_accepted(): void
+    public function test_a_second_run_against_a_repo_with_one_already_in_progress_is_rejected(): void
     {
         Queue::fake([RunGapAnalysisJob::class]);
 
         $repo = RepoConfig::create([
-            'name' => 'rams', 'display_name' => 'RAMS',
-            'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
-            'docker_image' => 'rams-app:latest',
+            'name' => 'backend', 'display_name' => 'acme/backend',
+            'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
+        ]);
+        \App\Models\Run::create([
+            'repo_config_id' => $repo->id, 'requirement_text' => 'first', 'target_file_path' => 'x.php',
+            'state' => \App\Enums\RunState::GapAnalysisRunning,
         ]);
 
         $this->postJson('/api/runs', [
             'repo_config_id' => $repo->id,
-            'requirement_text' => 'x',
+            'requirement_text' => 'second',
             'target_file_path' => 'x.php',
-        ])->assertOk();
+        ])->assertStatus(422);
 
-        Queue::assertPushed(RunGapAnalysisJob::class);
+        $this->assertDatabaseCount('runs', 1);
     }
 }

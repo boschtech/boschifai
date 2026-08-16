@@ -2,6 +2,7 @@
 
 namespace App\Services\ClaudeRunner;
 
+use App\Enums\RunStepKey;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -14,10 +15,35 @@ use Illuminate\Support\Str;
  * CLI version (`claude --help`): -p/--print, --output-format, --permission-mode, --model.
  *
  * TODO (flagged, not built here): production should run this inside a locked-down container
- * (network egress restricted to api.anthropic.com only, no GitHub/AWS credentials present) per
- * plan §3 — `boschifai.claude.docker_image` names the intended image, but building/hardening
- * that image is real infra work requiring engineering sign-off, not something to assume done.
- * This class currently execs `claude` directly on the host running the queue worker.
+ * (network egress restricted to api.anthropic.com only) per plan §3 — `boschifai.claude.docker_image`
+ * names the intended image, but building/hardening that image is real infra work requiring
+ * engineering sign-off, not something to assume done. This class currently execs `claude`
+ * directly on the host running the queue worker.
+ *
+ * GitHub MCP server: only wired in (via --mcp-config, below) when a PAT is actually configured
+ * (config('boschifai.github_mcp.pat')) — every invocation gets the same server available, but
+ * PushAndOpenPrJob's MCP-based push path is the only caller that deliberately uses it with a
+ * tightly scoped, code-authored prompt (exact branch/file/PR title/body, explicit "no other
+ * tool calls" instruction) specifically because this now puts push credentials in the same
+ * process as agentic code — a tradeoff BranchAndCommitService's own docblock originally avoided
+ * entirely. See that job for the compensating controls (local commit prepared and verified
+ * BEFORE Claude runs, PR contents verified via the REST API after).
+ *
+ * `--allowedTools` for the push step only: confirmed as a real bug live — `--permission-mode
+ * acceptEdits` only pre-approves file Edit/Write, not MCP tool calls, so `mcp__github__
+ * create_branch` stalled on "needs your approval before I can proceed" with no human available
+ * to grant it, identical in shape to the earlier `git push`-via-Bash bug this class already works
+ * around. Rather than reaching for `--dangerously-skip-permissions` (which would also silently
+ * approve the exact `git`/Bash commands the push prompt explicitly forbids), only the specific
+ * mcp__github__* tools that constrained prompt actually needs are pre-approved — nothing else
+ * gets a wider grant. Generation-side steps pass no stepKey-specific allowlist and keep today's
+ * fully agentic behaviour unchanged.
+ *
+ * PUSH_STEP_ALLOWED_TOOLS lists BOTH `create_or_update_file` and `push_files`: confirmed as a
+ * real bug live — the github-mcp-server exposes both a single-file and a multi-file commit tool,
+ * and which one Claude reaches for isn't pinned down by the prompt (observed it pick
+ * `push_files` for what the prompt describes as writing one file). Allowlisting only one left
+ * the other stalled on approval exactly like `create_branch` originally did.
  */
 class HeadlessClaudeInvoker
 {
@@ -26,6 +52,14 @@ class HeadlessClaudeInvoker
 
     /** How long the process loop sleeps between polls — cheap, just watching for exit/output. */
     private const POLL_INTERVAL_MICROSECONDS = 300_000;
+
+    /** Tools the constrained push prompt needs pre-approved — nothing wider (see class docblock). */
+    private const PUSH_STEP_ALLOWED_TOOLS = [
+        'mcp__github__create_branch',
+        'mcp__github__create_or_update_file',
+        'mcp__github__push_files',
+        'mcp__github__create_pull_request',
+    ];
 
     public function __construct(private ClaudeTranscriptParser $parser)
     {
@@ -42,6 +76,7 @@ class HeadlessClaudeInvoker
         string $transcriptPath,
         int $timeoutSeconds,
         callable $isCancelled,
+        ?string $stepKey = null,
     ): ClaudeInvocationResult {
         File::ensureDirectoryExists(dirname($transcriptPath));
         // Truncate/create up front — the callback below appends as output arrives, so the file
@@ -61,15 +96,32 @@ class HeadlessClaudeInvoker
         // concurrent request (the activity endpoint) can tail it mid-run. A line may be read
         // mid-write and fail json_decode — expected and harmless, every reader here already
         // skips undecodable lines.
+        $githubMcpPat = config('boschifai.github_mcp.pat');
+
         $invoked = Process::path($worktreePath)
             ->timeout($timeoutSeconds) // defense-in-depth only — see note on manual deadline below
-            ->env(array_filter(['ANTHROPIC_API_KEY' => config('boschifai.claude.api_key')]))
+            ->env(array_filter([
+                'ANTHROPIC_API_KEY' => config('boschifai.claude.api_key'),
+                // Read by the github-mcp-server subprocess `claude` itself spawns (see
+                // mcp-config.json) via normal child-process environment inheritance — never
+                // written into that config file, which stays secret-free and safe to bake into
+                // the image/commit to version control.
+                'GITHUB_PERSONAL_ACCESS_TOKEN' => $githubMcpPat,
+            ]))
             ->start([
                 'claude', '-p', $prompt,
                 '--output-format', 'stream-json',
                 '--verbose',
                 '--permission-mode', 'acceptEdits',
                 '--model', $model,
+                // Only when a PAT is actually configured — otherwise the github-mcp-server
+                // subprocess would start with no credential, fail to authenticate, and this
+                // invocation would pay `--mcp-config`'s own startup-sync wait (up to 30s via
+                // MCP_TIMEOUT) for a server nobody set up yet.
+                ...($githubMcpPat ? ['--mcp-config', config('boschifai.github_mcp.config_path')] : []),
+                ...($githubMcpPat && $stepKey === RunStepKey::Push->value
+                    ? ['--allowedTools', implode(',', self::PUSH_STEP_ALLOWED_TOOLS)]
+                    : []),
             ], function (string $type, string $bytes) use ($transcriptPath, &$errorOutput) {
                 if ($type === \Symfony\Component\Process\Process::OUT) {
                     File::append($transcriptPath, $bytes);

@@ -27,6 +27,12 @@ enum RunState: string
     case CiComplete = 'ci_complete';
     case ReportReady = 'report_ready';
 
+    // Standalone Actions (build_skills/build_knowledge_base run types) — a single step, no
+    // gate, no push: see RunStandaloneActionJob. Shared across both run types rather than
+    // giving each its own running/complete pair, same as Failed/Cancelled being shared already.
+    case StandaloneRunning = 'standalone_running';
+    case StandaloneComplete = 'standalone_complete';
+
     case Failed = 'failed';
     case Cancelled = 'cancelled';
 
@@ -37,6 +43,7 @@ enum RunState: string
             self::GenerationBlocked,
             self::PushRejected,
             self::ReportReady,
+            self::StandaloneComplete,
             self::Failed,
             self::Cancelled,
         ], true);

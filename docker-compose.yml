@@ -8,6 +8,15 @@ services:
     restart: unless-stopped
     volumes:
       - .:/var/www/html
+      # "Connect Repo"'s local-filesystem section browses repos from here — read-only since
+      # LocalRepoController only ever needs to read from it, never write. See config/boschifai.php's
+      # `local_repos.root_path` docblock.
+      - ${BOSCHIFAI_LOCAL_REPOS_ROOT:-/Users/garthbosch/projects}:/host-repos:ro
+      # Read-only: RunController::activity() (served by THIS container) tails
+      # LocalTestRunner::logPathFor() live while a step is running — that path now lives on the
+      # `test-runner` sidecar's shared log volume, not local storage. See that service's comment
+      # for why local_execution moved out of `worker`.
+      - boschifai_test_jobs:/var/boschifai-jobs:ro
     ports:
       - "8420:8000"
     networks:
@@ -20,6 +29,9 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: root
       QUEUE_CONNECTION: database
+      # Overrides whatever bare-host path .env has for this — same reasoning as the DB_* vars
+      # above: this container only ever sees the local-repos root at the bind mount above.
+      BOSCHIFAI_LOCAL_REPOS_ROOT_PATH: /host-repos
     # Runs migrations on every start so a fresh `docker compose up` just works — confirmed
     # necessary by a real crash caught in testing: the worker (below) failed outright on first
     # boot because it started before migrations existed, and without `restart:` it just stayed
@@ -58,23 +70,39 @@ services:
       db:
         condition: service_healthy
 
-  # Runs the actual pipeline jobs — the only service that needs the Docker socket, to spin up
-  # sibling test-runner containers via DockerTestRunner. `app` (web/API) never touches it.
-  # Every target repo is cloned fresh over HTTPS using the connected GitHub account's OAuth
-  # token (see RepoMirrorManager/GithubOAuthService) — no local checkout is mounted here.
+  # Runs the actual pipeline jobs — Claude invocations, orchestration, git/push. Local test
+  # EXECUTION itself (composer install + phpunit) happens in the `test-runner` service below,
+  # not here — see that service's own comment for why. `app` (web/API) never runs jobs.
+  # A GitHub-connected target repo is cloned fresh over HTTPS using the connected account's
+  # OAuth token into its own persistent checkout (see RepoCheckoutManager/GithubOAuthService);
+  # a locally-connected one is used directly from the bind mount below instead.
   worker:
     container_name: boschifai-worker
     image: boschifai-app # same image as `app` — just a different command
     restart: unless-stopped
     # Runs its own migrate (see app's command comment above for why no --isolated) before
-    # polling. RepoConfig rows now come exclusively from the "Connect GitHub" OAuth flow —
+    # polling. RepoConfig rows come from "Connect Repo" (GitHub OAuth or a local checkout) —
     # nothing left to seed here.
     command: sh -c "php artisan migrate --force && php artisan queue:work --tries=1"
     volumes:
       - .:/var/www/html
-      # Docker-outside-of-Docker: lets this container ask the HOST daemon to run a sibling
-      # test-runner container. This container is never given a Docker daemon of its own.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Read-write, unlike `app`'s mount of the same host path: RunWorkspaceManager writes
+      # `.claude/` scaffolding, generated test files, and JUnit reports directly into a
+      # locally-connected repo's own directory (no clone — see RepoCheckoutManager's own
+      # docblock), and BranchAndCommitService commits from there for the push step. All of that
+      # runs in THIS container, never in `app`, which only ever reads this path to list/browse
+      # repos when connecting one — confirmed as a real bug via a live run: with this mounted
+      # `:ro`, `boschifai init --yes --force` failed outright with "Read-only file system",
+      # leaving the Run stuck at `gap_analysis_running` with no failed-step message.
+      - ${BOSCHIFAI_LOCAL_REPOS_ROOT:-/Users/garthbosch/projects}:/host-repos:rw
+      # Composer's cache, persisted across runs/containers so `composer install` in
+      # LocalTestRunner and this app's own dependency install both hit cache instead of
+      # re-downloading every time.
+      - boschifai_composer_cache:/root/.composer/cache
+      # The job-file protocol LocalTestRunner speaks to `test-runner` (write a {run_id}.job.json
+      # here, poll for {run_id}.done.json) — see that service's comment and
+      # docker/test-runner/poll.php's docblock for the full protocol and why it exists.
+      - boschifai_test_jobs:/var/boschifai-jobs
     networks:
       - boschifai_net
     environment:
@@ -85,15 +113,58 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: root
       QUEUE_CONNECTION: database
-      # Compose resolves `.` (this compose file's directory) to an absolute host path even
-      # though the container only ever sees it as /var/www/html — ${PWD} at `docker compose up`
-      # time gives that same host path back, which is what DockerTestRunner needs to hand to
-      # the HOST docker daemon (see config/boschifai.php's docker.host_var_path docblock).
-      BOSCHIFAI_HOST_VAR_PATH: ${PWD}/var/boschifai
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Optional — see config/boschifai.php's github_mcp docblock. Blank keeps PushAndOpenPrJob
+      # on its original deterministic push path; only worker needs this, since only worker
+      # invokes Claude.
+      GITHUB_MCP_PAT: ${GITHUB_MCP_PAT:-}
+      # See the identical override in `app` above.
+      BOSCHIFAI_LOCAL_REPOS_ROOT_PATH: /host-repos
     depends_on:
       db:
         condition: service_healthy
+
+  # Runs a connected repo's OWN `composer install` + test suite (see LocalTestRunner) — split out
+  # from `worker` in direct response to a real incident: `worker` carries Boschifai's own live DB
+  # credentials as ambient environment (needed for its own queue/app work), and a connected
+  # repo's test suite inherits that environment when its command runs as `worker`'s own child
+  # process. RAMS's own phpunit.xml tries to override DB_* to sqlite for its tests but doesn't
+  # set `force="true"` on those overrides, so PHPUnit left the inherited (Boschifai's real)
+  # values in place; its test suite's `RefreshDatabase` trait then ran `migrate:fresh` against
+  # Boschifai's actual database, wiping it. Splitting test execution into a container that never
+  # HAS those credentials makes that class of failure structurally impossible, not just
+  # mitigated by remembering to scrub env vars correctly everywhere.
+  #
+  # Deliberately no DB_, QUEUE_CONNECTION, or ANTHROPIC_API_KEY vars, and no `boschifai_net` —
+  # this container has no route to `db` at all, so even a connected repo's own code hardcoding
+  # `DB_HOST=db` (not just inheriting it) still can't reach it.
+  #
+  # Deliberately mounts only the two paths a checkout can live under — NOT `.:/var/www/html` —
+  # so there's no `.env`/`vendor/` here for the standalone poller script to ever accidentally
+  # load (see docker/test-runner/poll.php's own docblock for why that matters even for code we
+  # trust).
+  test-runner:
+    container_name: boschifai-test-runner
+    image: boschifai-app # same image as `app`/`worker` — reuses its PHP/Composer/gd/exif toolchain
+    restart: unless-stopped
+    command: php /opt/boschifai/test-runner-poll.php
+    volumes:
+      # Same path as `worker`'s own mount, for a locally-connected repo.
+      - ${BOSCHIFAI_LOCAL_REPOS_ROOT:-/Users/garthbosch/projects}:/host-repos:rw
+      # Same absolute path `worker` resolves via its own full `.:/var/www/html` mount, for a
+      # GitHub-connected repo's persistent clone (see RepoCheckoutManager) — mounted at just this
+      # one subdirectory, not the whole project.
+      - ./var/boschifai/repos:/var/www/html/var/boschifai/repos:rw
+      - boschifai_composer_cache:/root/.composer/cache
+      - boschifai_test_jobs:/var/boschifai-jobs
+    # A dedicated bridge network, deliberately NOT `boschifai_net` — this container still needs
+    # normal internet egress (composer installs a connected repo's own dependencies from
+    # packagist/GitHub), just no L2/L3 path to `db` or any other Boschifai service. Two
+    # containers on different user-defined bridge networks can't reach each other by name OR by
+    # IP, which is what actually matters here — the missing DB_* env vars alone wouldn't stop a
+    # connected repo's own code from hardcoding `DB_HOST=db` and trying anyway.
+    networks:
+      - test_runner_net
 
   db:
     image: mysql:8.0.32
@@ -115,13 +186,17 @@ services:
 networks:
   boschifai_net:
     driver: bridge
+  # `test-runner`'s own isolated network — see that service's comment for why it's kept separate
+  # from `boschifai_net` rather than just omitting DB_* env vars and calling it done.
+  test_runner_net:
+    driver: bridge
 
 volumes:
   boschifai_dbdata:
     driver: local
-  # Named volume for Composer's cache only — shared between this app's own `composer install`
-  # and every throwaway test-runner container DockerTestRunner spins up, so repeated runs hit
-  # cache instead of re-downloading. Not used for the worktree filesystem itself (that's a bind
-  # mount, translated via host_var_path — see above).
+  # Composer's cache — see the `worker` service's own comment on this mount.
   boschifai_composer_cache:
+    driver: local
+  # The job-file protocol between `worker` and `test-runner` — see docker/test-runner/poll.php.
+  boschifai_test_jobs:
     driver: local

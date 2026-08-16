@@ -1,9 +1,19 @@
 <template>
     <div>
-        <h1 class="text-xl font-bold text-fg-strong mb-6">Runs</h1>
+        <div class="mb-6 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-fg-strong">{{ showArchived ? 'Archived Runs' : 'Runs' }}</h1>
+            <button
+                type="button"
+                class="rounded-sm border border-border bg-surface px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-surface-alt"
+                @click="toggleArchived"
+            >
+                {{ showArchived ? 'Show active runs' : 'Show archived' }}
+            </button>
+        </div>
 
         <p v-if="loading" class="text-fg-muted">Loading…</p>
         <p v-else-if="error" class="text-danger">{{ error }}</p>
+        <p v-else-if="!list.length && showArchived" class="text-fg-muted">No archived runs.</p>
         <p v-else-if="!list.length" class="text-fg-muted">
             No runs yet. <router-link :to="{ name: 'runs.create' }" class="text-primary underline">Submit a requirement</router-link> to start one.
         </p>
@@ -38,33 +48,53 @@
                         <span v-else class="text-fg-muted">—</span>
                     </td>
                     <td class="px-4 py-2 text-fg-muted">{{ run.updated_at }}</td>
-                    <td class="px-4 py-2 text-right">
-                        <button
-                            v-if="isEditable(run.state)"
-                            type="button"
-                            class="mr-3 text-fg-muted transition hover:text-primary"
-                            title="Edit run"
-                            @click.stop="$router.push({ name: 'runs.edit', params: { id: run.id } })"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
-                                <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            :disabled="deletingId === run.id"
-                            class="text-fg-muted transition hover:text-danger disabled:opacity-50"
-                            title="Delete run"
-                            @click.stop="deleteRunWithConfirm(run)"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
-                                <path
-                                    fill-rule="evenodd"
-                                    d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482 41.03 41.03 0 0 0-2.365-.298V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
-                                    clip-rule="evenodd"
-                                />
-                            </svg>
-                        </button>
+                    <td class="px-4 py-2">
+                        <div class="flex items-center justify-end gap-3">
+                            <button
+                                v-if="isEditable(run.state)"
+                                type="button"
+                                class="text-fg-muted transition hover:text-primary"
+                                title="Edit run"
+                                @click.stop="$router.push({ name: 'runs.edit', params: { id: run.id } })"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+                                    <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828Z" />
+                                </svg>
+                            </button>
+                            <span v-else class="inline-block h-4 w-4" aria-hidden="true"></span>
+
+                            <button
+                                type="button"
+                                :disabled="archivingId === run.id"
+                                class="text-fg-muted transition hover:text-primary disabled:opacity-50"
+                                :title="run.archived_at ? 'Restore run' : 'Archive run'"
+                                @click.stop="toggleArchiveRun(run)"
+                            >
+                                <svg v-if="run.archived_at" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v3.19L7.03 8.72a.75.75 0 0 0-1.06 1.06l3 3a.75.75 0 0 0 1.06 0l3-3a.75.75 0 1 0-1.06-1.06l-2.22 2.22V6.75Z" clip-rule="evenodd" />
+                                </svg>
+                                <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+                                    <path d="M2 3a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2Z" />
+                                    <path fill-rule="evenodd" d="M2 7.5h16l-.811 7.71a2 2 0 0 1-1.99 1.79H4.8a2 2 0 0 1-1.99-1.79L2 7.5Zm5 3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+
+                            <button
+                                type="button"
+                                :disabled="deletingId === run.id"
+                                class="text-fg-muted transition hover:text-danger disabled:opacity-50"
+                                title="Delete run"
+                                @click.stop="deleteRunWithConfirm(run)"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482 41.03 41.03 0 0 0-2.365-.298V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             </tbody>
@@ -105,6 +135,8 @@ export default {
         return {
             deletingId: null,
             pendingDelete: null,
+            showArchived: false,
+            archivingId: null,
         };
     },
 
@@ -118,11 +150,32 @@ export default {
     },
 
     created() {
-        this.fetchRuns();
+        this.fetchRuns({ archived: this.showArchived });
     },
 
     methods: {
-        ...mapActions('runs', ['fetchRuns', 'deleteRun']),
+        ...mapActions('runs', ['fetchRuns', 'deleteRun', 'archiveRun', 'unarchiveRun']),
+
+        toggleArchived() {
+            this.showArchived = !this.showArchived;
+            this.fetchRuns({ archived: this.showArchived });
+        },
+
+        async toggleArchiveRun(run) {
+            this.archivingId = run.id;
+            try {
+                if (run.archived_at) {
+                    await this.unarchiveRun(run.id);
+                } else {
+                    await this.archiveRun(run.id);
+                }
+                // archiveRun/unarchiveRun only update vuex's `current` run, not `list` — the
+                // row needs to disappear from (or appear in) whichever filtered list is showing.
+                await this.fetchRuns({ archived: this.showArchived });
+            } finally {
+                this.archivingId = null;
+            }
+        },
 
         isEditable(state) {
             return EDITABLE_STATES.includes(state);

@@ -42,6 +42,37 @@ class ConfidenceScoreCalculator
         ];
     }
 
+    /**
+     * Same composite formula, minus the `ci` component — for a run at Gate 2 (local_execution_complete),
+     * CI hasn't happened yet (there's nothing to push to CI until this gate is approved), so
+     * `calculate()`'s own `ci: 0` default would understate this run's real standing rather than
+     * just reflect "not run yet". Renormalizes the other three weights so they still sum to 100,
+     * instead of arbitrarily deciding what CI "would have" scored.
+     */
+    public function calculatePrePush(Run $run): array
+    {
+        $weights = config('boschifai.confidence_weights');
+        $availableWeight = $weights['testability'] + $weights['test_case_quality'] + $weights['local_execution'];
+
+        $testability = $run->testability_score ?? 0;
+        $testCaseQuality = $this->testCaseQualityScore($run);
+        $localExecution = $run->executionResult ? $run->executionResult->passRate() : 0;
+
+        $composite = round(
+            ($testability * $weights['testability']
+                + $testCaseQuality * $weights['test_case_quality']
+                + $localExecution * $weights['local_execution'])
+            / $availableWeight
+        );
+
+        return [
+            'composite' => (int) $composite,
+            'testability' => (int) $testability,
+            'test_case_quality' => (int) $testCaseQuality,
+            'local_execution' => (int) $localExecution,
+        ];
+    }
+
     private function testCaseQualityScore(Run $run): int
     {
         return match ($run->test_case_verdict) {

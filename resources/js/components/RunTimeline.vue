@@ -1,13 +1,17 @@
 <template>
-    <ol class="flex flex-wrap items-center gap-2 mb-8">
-        <li v-for="(step, idx) in steps" :key="step.key" class="flex items-center gap-2">
+    <ol class="flex flex-nowrap items-center gap-2 overflow-x-auto p-4">
+        <li v-for="(step, idx) in steps" :key="step.key" class="flex shrink-0 items-center gap-2">
             <div
-                class="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium"
+                class="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium"
                 :class="[badgeClasses(step), { 'stage-glow': step.status === 'running' }]"
             >
                 <span v-if="step.isHumanGate">&#128100;</span>
                 <span>{{ step.label }}</span>
-                <span v-if="step.status === 'running'">…</span>
+                <span
+                    v-if="step.status === 'running'"
+                    class="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-current animate-pulse"
+                    aria-hidden="true"
+                ></span>
             </div>
             <span v-if="idx < steps.length - 1" class="text-fg-muted/50">&rarr;</span>
         </li>
@@ -15,15 +19,37 @@
 </template>
 
 <script>
-const STEP_DEFS = [
-    { key: 'gap_analysis', label: 'Gap analysis', isHumanGate: false },
-    { key: 'gate_1', label: 'Gate 1: Review & Plan', isHumanGate: true },
-    { key: 'generation', label: 'Generation', isHumanGate: false },
-    { key: 'local_execution', label: 'Local execution', isHumanGate: false },
-    { key: 'gate_2', label: 'Gate 2: Push', isHumanGate: true },
-    { key: 'ci', label: 'CI', isHumanGate: false },
-    { key: 'report', label: 'Report', isHumanGate: false },
-];
+const STEP_DEFS = {
+    requirement: [
+        { key: 'gap_analysis', label: 'Gap analysis', isHumanGate: false },
+        { key: 'gate_1', label: 'Gate 1: Review & Plan', isHumanGate: true },
+        { key: 'generation', label: 'Generation', isHumanGate: false },
+        { key: 'local_execution', label: 'Local execution', isHumanGate: false },
+        { key: 'gate_2', label: 'Gate 2: Push', isHumanGate: true },
+        { key: 'ci', label: 'CI', isHumanGate: false },
+        { key: 'report', label: 'Report', isHumanGate: false },
+    ],
+    coverage: [
+        { key: 'gap_analysis', label: 'Codebase analysis', isHumanGate: false },
+        { key: 'gate_1', label: 'Gate 1: Review test cases', isHumanGate: true },
+        { key: 'generation', label: 'Generation', isHumanGate: false },
+        { key: 'local_execution', label: 'Local execution', isHumanGate: false },
+        { key: 'gate_2', label: 'Gate 2: Push', isHumanGate: true },
+        { key: 'ci', label: 'CI', isHumanGate: false },
+        { key: 'report', label: 'Report', isHumanGate: false },
+    ],
+    // Standalone Actions (SidebarNav) — a single step, no gate, no push: see
+    // RunStandaloneActionJob. Two entries only (vs. seven above) since there's nothing else in
+    // this run's lifecycle to show.
+    build_skills: [
+        { key: 'build_skills', label: 'Build skills', isHumanGate: false },
+        { key: 'report', label: 'Report', isHumanGate: false },
+    ],
+    build_knowledge_base: [
+        { key: 'build_knowledge_base', label: 'Build knowledge base', isHumanGate: false },
+        { key: 'report', label: 'Report', isHumanGate: false },
+    ],
+};
 
 // Maps a Run.state (see RunState enum) to the index of the step it represents being "at".
 const STATE_TO_STEP_INDEX = {
@@ -40,6 +66,8 @@ const STATE_TO_STEP_INDEX = {
     ci_pending: 5,
     ci_complete: 6,
     report_ready: 6,
+    standalone_running: 0,
+    standalone_complete: 1,
     failed: -1,
     cancelled: -1,
 };
@@ -51,6 +79,7 @@ export default {
 
     props: {
         state: { type: String, required: true },
+        runType: { type: String, default: 'requirement' },
     },
 
     computed: {
@@ -59,7 +88,8 @@ export default {
         },
 
         steps() {
-            return STEP_DEFS.map((def, idx) => {
+            const defs = STEP_DEFS[this.runType] ?? STEP_DEFS.requirement;
+            return defs.map((def, idx) => {
                 let status = 'pending';
                 if (idx < this.currentIndex) status = 'done';
                 if (idx === this.currentIndex) {

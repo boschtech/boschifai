@@ -16,7 +16,6 @@ class RepoConfigControllerTest extends TestCase
         RepoConfig::create([
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
-            'docker_image' => 'rams-app:latest',
         ]);
         RepoConfig::create([
             'name' => 'backend', 'display_name' => 'acme/backend',
@@ -25,8 +24,8 @@ class RepoConfigControllerTest extends TestCase
 
         $response = $this->getJson('/api/repo-configs')->assertOk();
 
-        $response->assertJsonFragment(['name' => 'rams', 'has_docker_image' => true, 'connected_via_github' => false]);
-        $response->assertJsonFragment(['name' => 'backend', 'has_docker_image' => false]);
+        $response->assertJsonFragment(['name' => 'rams', 'connected_via_github' => false]);
+        $response->assertJsonFragment(['name' => 'backend', 'connected_via_github' => false]);
         $response->assertJsonMissingPath('data.0.git_remote_path');
     }
 

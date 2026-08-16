@@ -10,7 +10,7 @@ use App\Models\RunStep;
 use App\Services\ArtifactCollection\GitStatusDiffCollector;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
-use App\Services\Sandbox\WorktreeManager;
+use App\Services\Sandbox\RunWorkspaceManager;
 use Illuminate\Support\Facades\File;
 
 /**
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\File;
 class StepExecutionService
 {
     public function __construct(
-        private WorktreeManager $worktrees,
+        private RunWorkspaceManager $workspace,
         private HeadlessClaudeInvoker $invoker,
         private GitStatusDiffCollector $diffCollector,
         private CancellationChecker $cancellation,
@@ -34,7 +34,7 @@ class StepExecutionService
         // Pre-check before doing anything: covers cancelling a run while it's still queued
         // (dispatched but no worker free yet) or in the brief gap between pipeline steps —
         // without this, the earliest a cancellation could take effect would be mid-invocation,
-        // wasting a worktree/API call that was already known to be unwanted.
+        // wasting a checkout-prep/API call that was already known to be unwanted.
         if ($this->cancellation->isRequested($run->id)) {
             $this->cancellation->markCancelled($run, $stepKey, 'Cancelled by user before this step started.');
 
@@ -46,8 +46,8 @@ class StepExecutionService
             ['status' => RunStepStatus::Running, 'started_at' => now(), 'finished_at' => null, 'error_message' => null]
         );
 
-        $worktreePath = $this->worktrees->path($run);
-        $before = $this->worktrees->statusPaths($run);
+        $checkoutPath = $this->workspace->path($run);
+        $before = $this->workspace->statusPaths($run);
 
         $transcriptPath = $this->invoker->transcriptPathFor($run->id, $stepKey);
 
@@ -65,11 +65,12 @@ class StepExecutionService
         ]);
 
         $result = $this->invoker->invoke(
-            $worktreePath,
+            $checkoutPath,
             $prompt,
             $transcriptPath,
             $timeoutSeconds,
             fn () => $this->cancellation->isRequested($run->id),
+            $stepKey,
         );
 
         $invocation->update([
@@ -90,12 +91,12 @@ class StepExecutionService
         $artifacts = collect();
 
         if ($result->succeeded()) {
-            $after = $this->worktrees->statusPaths($run);
+            $after = $this->workspace->statusPaths($run);
             $newPaths = $this->diffCollector->newPaths($before, $after);
             $classified = $this->diffCollector->classifyAll($newPaths);
 
             foreach ($classified as $relativePath => $kindValue) {
-                $absolutePath = $worktreePath.'/'.$relativePath;
+                $absolutePath = $checkoutPath.'/'.$relativePath;
                 if (! File::exists($absolutePath)) {
                     continue;
                 }

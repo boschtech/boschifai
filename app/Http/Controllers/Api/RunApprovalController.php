@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ApprovalGate;
 use App\Enums\ArtifactKind;
 use App\Enums\RunState;
+use App\Enums\RunType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DecideGapAnalysisRequest;
 use App\Http\Requests\DecidePushRequest;
 use App\Http\Resources\RunResource;
 use App\Jobs\PushAndOpenPrJob;
+use App\Jobs\RunCodeGenerationJob;
 use App\Jobs\RunTestCaseGenerationJob;
 use App\Models\Run;
 
@@ -27,9 +29,14 @@ class RunApprovalController extends Controller
 
         $decision = $request->validated('decision');
 
-        $review = $run->artifactOfKind(ArtifactKind::TestabilityReview->value);
-        $plan = $run->artifactOfKind(ArtifactKind::TestPlan->value);
-        $hash = hash('sha256', ($review?->content ?? '').($plan?->content ?? ''));
+        // Coverage mode's Gate 1 covers the codebase-analysis + test-design artifacts instead
+        // of a testability review + test plan (see RunGapAnalysisJob/RunTestPlanJob) — the
+        // approval-hash mechanism itself (invalidate the approval if the underlying content
+        // ever changes) is identical either way.
+        $isCoverage = $run->run_type === RunType::Coverage;
+        $first = $run->artifactOfKind(($isCoverage ? ArtifactKind::CodebaseKnowledgeBase : ArtifactKind::TestabilityReview)->value);
+        $second = $isCoverage ? $run->artifactOfKind(ArtifactKind::TestCasesMarkdown->value) : $run->artifactOfKind(ArtifactKind::TestPlan->value);
+        $hash = hash('sha256', ($first?->content ?? '').($second?->content ?? ''));
 
         $run->approvals()->create([
             'gate' => ApprovalGate::GapAnalysis,
@@ -42,7 +49,15 @@ class RunApprovalController extends Controller
 
         if ($decision === 'approved') {
             $run->update(['state' => RunState::GenerationRunning]);
-            RunTestCaseGenerationJob::dispatch($run->id);
+
+            // Coverage mode's test_plan slot already produced the test cases directly (plan's
+            // state-reuse mapping) — regenerating them via RunTestCaseGenerationJob would be
+            // redundant, so code generation is dispatched straight away.
+            if ($isCoverage) {
+                RunCodeGenerationJob::dispatch($run->id);
+            } else {
+                RunTestCaseGenerationJob::dispatch($run->id);
+            }
         } else {
             // Both "rejected" and "changes_requested" land here as one terminal state — see
             // Judgment call J5 in the plan: starting a fresh Run with the edited requirement
@@ -63,7 +78,7 @@ class RunApprovalController extends Controller
 
         $decision = $request->validated('decision');
 
-        $generatedCode = $run->artifactOfKind(ArtifactKind::GeneratedTestPhp->value);
+        $generatedCode = $run->artifactOfKind(ArtifactKind::GeneratedTest->value);
         $hash = hash('sha256', $generatedCode?->content ?? '');
 
         $run->approvals()->create([

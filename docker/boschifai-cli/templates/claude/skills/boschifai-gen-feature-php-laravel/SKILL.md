@@ -1,5 +1,5 @@
 ---
-name: boschifai-gen-component-php-laravel
+name: boschifai-gen-feature-php-laravel
 description: "Component test generation rules for Laravel HTTP feature tests (PHPUnit 11, actingAs/getJson, SQLite in-memory) — extends boschifai-gen-component"
 ---
 
@@ -21,7 +21,7 @@ RAMS and RedRabbit share the same testing framework but differ in base classes a
 
 | Type | Framework | Notes |
 |------|-----------|-------|
-| Test runner | PHPUnit 11.5+ | `#[Test]` attribute convention |
+| Test runner | PHPUnit 11.5+ | `#[Test]` attribute convention — method names carry no `it_`/`test_` prefix; `#[Test]` alone marks a method as a test, `#[Title(...)]` supplies its human-readable description |
 | HTTP driver | Laravel's built-in `Illuminate\Foundation\Testing\TestCase` | `actingAs()`, `getJson()`/`postJson()`/`putJson()`/`deleteJson()` |
 | Database | SQLite in-memory (`:memory:`) | Set via `phpunit.xml`; real migrations run per test via the refresh trait |
 | Fakes for framework services | `Bus::fake()`, `Queue::fake()`, `Event::fake()`, `Mail::fake()`, `Notification::fake()` | Assert with `Queue::assertPushed(...)`, `Event::assertDispatched(...)` etc. |
@@ -61,7 +61,7 @@ final class AssetControllerTest extends TestCase
 
     #[Test]
     #[Title('Returns 200 with the asset payload when the asset belongs to the caller\'s team')]
-    public function it_returns_the_asset_for_the_owning_team(): void
+    public function returns_the_asset_for_the_owning_team(): void
     {
         // GIVEN an asset that belongs to the authenticated team
         $asset = $this->setUpAsset();
@@ -78,7 +78,7 @@ final class AssetControllerTest extends TestCase
 
     #[Test]
     #[Title('Returns 403 when the asset belongs to a different team')]
-    public function it_forbids_access_to_another_teams_asset(): void
+    public function forbids_access_to_another_teams_asset(): void
     {
         $otherTeamAsset = $this->setUpAsset(team: $this->createAnotherTeam());
 
@@ -89,7 +89,7 @@ final class AssetControllerTest extends TestCase
 
     #[Test]
     #[Title('Returns 403 when the user lacks the assets.view permission')]
-    public function it_forbids_access_without_permission(): void
+    public function forbids_access_without_permission(): void
     {
         $asset = $this->setUpAsset();
         $this->user->revokePermissionTo(PermissionName::AssetsView);
@@ -101,7 +101,7 @@ final class AssetControllerTest extends TestCase
 
     #[Test]
     #[Title('Dispatches a RedRabbit sync job when an asset is created')]
-    public function it_dispatches_sync_job_on_creation(): void
+    public function dispatches_sync_job_on_creation(): void
     {
         Queue::fake();
 
@@ -116,7 +116,7 @@ final class AssetControllerTest extends TestCase
 
     #[Test]
     #[Title('Returns 422 when required fields are missing')]
-    public function it_returns_validation_errors_for_missing_fields(): void
+    public function returns_validation_errors_for_missing_fields(): void
     {
         $response = $this->actingAs($this->user)->postJson(route('assets.store'), []);
 
@@ -190,7 +190,7 @@ Same as `boschifai-gen-unit-php-laravel`: `#[Suite('<Domain>')]` on the class, `
 
 - [ ] Read `tests/TestCase.php` (and any domain Feature base class) before writing anything
 - [ ] Extends the correct base class for the domain (not always plain `Tests\TestCase`)
-- [ ] `#[Test]` + `#[Title(...)]` on every method, `#[Suite(...)]` on the class
+- [ ] `#[Test]` + `#[Title(...)]` on every method, `#[Suite(...)]` on the class — method name itself carries no `it_`/`test_` prefix
 - [ ] Happy path, auth failure, permission failure, validation, not-found all covered
 - [ ] Multi-tenant cross-team access test included if the resource is team-scoped
 - [ ] External clients (sibling app, banking, credit bureau) mocked — never called for real

@@ -66,6 +66,85 @@ class ClaudeTranscriptParser
     }
 
     /**
+     * Extracts the `RECOMMENDED_TARGET_FILE: <path>` line PromptBuilder::coverageTestDesign()
+     * asks Claude to end with — coverage mode's equivalent of a human-specified
+     * `target_file_path` (see RunTestPlanJob).
+     */
+    public function extractRecommendedTargetFile(string $transcriptPath): ?string
+    {
+        if (! File::exists($transcriptPath)) {
+            return null;
+        }
+
+        $fullText = '';
+        foreach ($this->readLines($transcriptPath) as $line) {
+            $decoded = json_decode($line, true);
+            $fullText .= $this->extractTextFromMessage($decoded)."\n";
+        }
+
+        if (preg_match('/^RECOMMENDED_TARGET_FILE:\s*(.+)$/m', $fullText, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Extracts the `GENERATED_TEST_FILE: <path>` line PromptBuilder::codeGeneration()/
+     * coverageCodeGeneration() ask Claude to end with — RunCodeGenerationJob's fallback for when
+     * the git-status diff finds nothing new. See that prompt method's own docblock for why: an
+     * edit to a test file already left in the checkout from an earlier run never looks "new" to
+     * that diff, even though its content genuinely changed.
+     */
+    public function extractGeneratedTestFile(string $transcriptPath): ?string
+    {
+        if (! File::exists($transcriptPath)) {
+            return null;
+        }
+
+        $fullText = '';
+        foreach ($this->readLines($transcriptPath) as $line) {
+            $decoded = json_decode($line, true);
+            $fullText .= $this->extractTextFromMessage($decoded)."\n";
+        }
+
+        if (preg_match('/^GENERATED_TEST_FILE:\s*(.+)$/m', $fullText, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Extracts the `PR_URL:`/`PR_NUMBER:` lines PromptBuilder::pushViaGithubMcp() asks Claude to
+     * end with, once it's pushed the already-prepared local branch and opened the PR via the
+     * GitHub MCP server. Returns null if either line is missing or PR_NUMBER isn't a plain
+     * integer — PushAndOpenPrJob treats that the same as any other push failure, since there's
+     * nothing safe to verify or record without a real PR number.
+     *
+     * @return ?array{number: int, url: string}
+     */
+    public function extractPushResult(string $transcriptPath): ?array
+    {
+        if (! File::exists($transcriptPath)) {
+            return null;
+        }
+
+        $fullText = '';
+        foreach ($this->readLines($transcriptPath) as $line) {
+            $decoded = json_decode($line, true);
+            $fullText .= $this->extractTextFromMessage($decoded)."\n";
+        }
+
+        if (! preg_match('/^PR_URL:\s*(\S+)$/m', $fullText, $urlMatch)
+            || ! preg_match('/^PR_NUMBER:\s*(\d+)$/m', $fullText, $numberMatch)) {
+            return null;
+        }
+
+        return ['number' => (int) $numberMatch[1], 'url' => $urlMatch[1]];
+    }
+
+    /**
      * A readable, live-updating feed of what Claude is actually doing — assistant prose plus a
      * one-line summary of each tool call (e.g. "→ Bash: composer install ..."). Deliberately
      * skips raw tool_result payloads (often huge file contents) to keep the feed scannable.

@@ -13,7 +13,6 @@ class RepoConfig extends Model
         'display_name',
         'git_remote_path',
         'base_branch',
-        'docker_image',
         'copy_untracked_files',
         'github_connection_id',
         'github_owner',

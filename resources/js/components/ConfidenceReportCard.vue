@@ -39,10 +39,18 @@ const WEIGHTS = {
 };
 
 const LABELS = {
-    testability: 'Testability',
-    test_case_quality: 'Test-case generation quality',
-    local_execution: 'Local execution',
-    ci: 'CI (Sonar Scan)',
+    requirement: {
+        testability: 'Testability',
+        test_case_quality: 'Test-case generation quality',
+        local_execution: 'Local execution',
+        ci: 'CI (Sonar Scan)',
+    },
+    coverage: {
+        testability: 'Codebase understanding',
+        test_case_quality: 'Test-case generation quality',
+        local_execution: 'Local execution',
+        ci: 'CI (Sonar Scan)',
+    },
 };
 
 export default {
@@ -50,9 +58,14 @@ export default {
 
     props: {
         breakdown: { type: Object, required: true },
+        runType: { type: String, default: 'requirement' },
     },
 
     computed: {
+        labels() {
+            return LABELS[this.runType] ?? LABELS.requirement;
+        },
+
         band() {
             const score = this.breakdown.composite;
             if (score >= 80) return 'Green';
@@ -82,7 +95,7 @@ export default {
                 const weight = WEIGHTS[key];
                 return {
                     key,
-                    label: LABELS[key],
+                    label: this.labels[key],
                     score,
                     weight,
                     contribution: (score * weight) / 100,

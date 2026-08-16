@@ -30,7 +30,6 @@ categories:
       - boschifai-gen-component-java-event/SKILL.md
       - boschifai-gen-component-java-rest/SKILL.md
       - boschifai-gen-component-nextjs-bff/SKILL.md
-      - boschifai-gen-component-php-laravel/SKILL.md
       - boschifai-gen-e2e/SKILL.md
       - boschifai-gen-e2e-api-event/SKILL.md
       - boschifai-gen-e2e-api-nextjs/SKILL.md
@@ -38,6 +37,7 @@ categories:
       - boschifai-gen-e2e-mobile/SKILL.md
       - boschifai-gen-e2e-ui/SKILL.md
       - boschifai-gen-e2e-ui-sinov8/SKILL.md
+      - boschifai-gen-feature-php-laravel/SKILL.md
       - boschifai-gen-performance/SKILL.md
       - boschifai-gen-storybook/SKILL.md
       - boschifai-gen-unit/SKILL.md

@@ -31,11 +31,11 @@ const mutations = {
 };
 
 const actions = {
-    async fetchRuns({ commit }) {
+    async fetchRuns({ commit }, { archived = false } = {}) {
         commit('SET_LOADING', true);
         commit('SET_ERROR', null);
         try {
-            const { data } = await window.axios.get('/api/runs');
+            const { data } = await window.axios.get('/api/runs', { params: archived ? { archived: 1 } : {} });
             commit('SET_LIST', data.data);
         } catch (e) {
             commit('SET_ERROR', e.response?.data?.message || e.message);
@@ -92,6 +92,40 @@ const actions = {
     async cancelRun({ dispatch }, id) {
         await window.axios.post(`/api/runs/${id}/cancel`);
         return dispatch('fetchRun', id);
+    },
+
+    async rerunLocalExecution({ dispatch }, id) {
+        await window.axios.post(`/api/runs/${id}/local-execution/rerun`);
+        return dispatch('fetchRun', id);
+    },
+
+    async fixFailingTests({ dispatch }, id) {
+        await window.axios.post(`/api/runs/${id}/local-execution/fix-failing-tests`);
+        return dispatch('fetchRun', id);
+    },
+
+    async archiveRun({ commit }, id) {
+        commit('SET_ERROR', null);
+        try {
+            const { data } = await window.axios.post(`/api/runs/${id}/archive`);
+            commit('SET_CURRENT', data.data);
+            return data.data;
+        } catch (e) {
+            commit('SET_ERROR', e.response?.data?.message || e.message);
+            throw e;
+        }
+    },
+
+    async unarchiveRun({ commit }, id) {
+        commit('SET_ERROR', null);
+        try {
+            const { data } = await window.axios.post(`/api/runs/${id}/unarchive`);
+            commit('SET_CURRENT', data.data);
+            return data.data;
+        } catch (e) {
+            commit('SET_ERROR', e.response?.data?.message || e.message);
+            throw e;
+        }
     },
 };
 

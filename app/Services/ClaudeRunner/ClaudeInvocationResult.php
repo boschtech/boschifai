@@ -15,6 +15,10 @@ class ClaudeInvocationResult
         public readonly ?string $stopReason,
         public readonly string $stderr,
         public readonly bool $cancelled = false,
+        public readonly ?int $inputTokens = null,
+        public readonly ?int $outputTokens = null,
+        public readonly ?int $cacheCreationInputTokens = null,
+        public readonly ?int $cacheReadInputTokens = null,
     ) {
     }
 

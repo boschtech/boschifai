@@ -16,6 +16,10 @@ class ClaudeInvocation extends Model
         'duration_ms',
         'total_cost_usd',
         'num_turns',
+        'input_tokens',
+        'output_tokens',
+        'cache_creation_input_tokens',
+        'cache_read_input_tokens',
         'stop_reason',
         'timed_out',
     ];
@@ -25,6 +29,10 @@ class ClaudeInvocation extends Model
         return [
             'timed_out' => 'boolean',
             'total_cost_usd' => 'decimal:4',
+            'input_tokens' => 'integer',
+            'output_tokens' => 'integer',
+            'cache_creation_input_tokens' => 'integer',
+            'cache_read_input_tokens' => 'integer',
         ];
     }
 

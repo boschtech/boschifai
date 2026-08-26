@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\LocalRepoController;
 use App\Http\Controllers\Api\RepoConfigController;
 use App\Http\Controllers\Api\RunApprovalController;
 use App\Http\Controllers\Api\RunController;
+use App\Http\Controllers\Api\UsageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/runs', [RunController::class, 'index']);
@@ -35,3 +36,6 @@ Route::post('/github/connections/{connection}/organizations/{organization}/resto
 
 Route::get('/local-repos/browse', [LocalRepoController::class, 'browse']);
 Route::post('/local-repos/connect', [LocalRepoController::class, 'connect']);
+
+Route::get('/usage/tokens-this-month', [UsageController::class, 'tokensThisMonth']);
+Route::get('/usage/tokens-this-month/details', [UsageController::class, 'tokensThisMonthDetails']);

@@ -10,6 +10,7 @@ import StandaloneActionCreatePage from '../pages/StandaloneActionCreatePage.vue'
 import ConfidenceReportsPage from '../pages/ConfidenceReportsPage.vue';
 import CoverageReportsPage from '../pages/CoverageReportsPage.vue';
 import TestHistoryPage from '../pages/TestHistoryPage.vue';
+import TokenUsagePage from '../pages/TokenUsagePage.vue';
 
 Vue.use(VueRouter);
 
@@ -54,11 +55,14 @@ const routes = [
             submitLabel: 'Build knowledge base',
         },
     },
-    // Reporting section (SidebarNav) — all three read from the same runs list (see
-    // RunListResource) rather than having their own endpoints.
+    // Reporting section (SidebarNav) — confidence/coverage/test-history all read from the same
+    // runs list (see RunListResource); token usage has its own endpoint (UsageController) since
+    // it's sourced from claude_invocations, not the runs table. Also the header token badge's
+    // link target (App.vue) — same route, two entry points.
     { path: '/reporting/confidence-reports', name: 'reporting.confidence', component: ConfidenceReportsPage },
     { path: '/reporting/coverage-reports', name: 'reporting.coverage', component: CoverageReportsPage },
     { path: '/reporting/test-history', name: 'reporting.test-history', component: TestHistoryPage },
+    { path: '/reporting/token-usage', name: 'reporting.token-usage', component: TokenUsagePage },
 ];
 
 export default new VueRouter({

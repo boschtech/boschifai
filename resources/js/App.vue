@@ -6,6 +6,7 @@
                     Boschif<span class="text-[#D4AF37]">AI</span>
                 </router-link>
                 <div class="flex items-center gap-3">
+                    <token-usage-badge />
                     <theme-toggle />
                     <router-link
                         :to="{ name: 'home' }"
@@ -36,11 +37,12 @@
 <script>
 import ThemeToggle from './components/ThemeToggle.vue';
 import SidebarNav from './components/SidebarNav.vue';
+import TokenUsageBadge from './components/TokenUsageBadge.vue';
 
 export default {
     name: 'App',
 
-    components: { ThemeToggle, SidebarNav },
+    components: { ThemeToggle, SidebarNav, TokenUsageBadge },
 
     mounted() {
         // SidebarNav's sticky offset needs to match this header's REAL rendered height, not a

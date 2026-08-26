@@ -16,10 +16,20 @@ use Illuminate\Support\Str;
  */
 class ClaudeTranscriptParser
 {
-    /** @return array{total_cost_usd: ?float, num_turns: ?int, stop_reason: ?string} */
+    /**
+     * @return array{
+     *     total_cost_usd: ?float, num_turns: ?int, stop_reason: ?string,
+     *     input_tokens: ?int, output_tokens: ?int,
+     *     cache_creation_input_tokens: ?int, cache_read_input_tokens: ?int,
+     * }
+     */
     public function parseSummary(string $transcriptPath): array
     {
-        $summary = ['total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null];
+        $summary = [
+            'total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null,
+            'input_tokens' => null, 'output_tokens' => null,
+            'cache_creation_input_tokens' => null, 'cache_read_input_tokens' => null,
+        ];
 
         if (! File::exists($transcriptPath)) {
             return $summary;
@@ -34,6 +44,20 @@ class ClaudeTranscriptParser
             $summary['total_cost_usd'] = isset($decoded['total_cost_usd']) ? (float) $decoded['total_cost_usd'] : null;
             $summary['num_turns'] = isset($decoded['num_turns']) ? (int) $decoded['num_turns'] : null;
             $summary['stop_reason'] = $decoded['stop_reason'] ?? $decoded['subtype'] ?? null;
+
+            // `usage` — confirmed by reading a real transcript's "result" line (see
+            // ClaudeInvocation's token columns): input_tokens/output_tokens are the two
+            // headline numbers, cache_creation/cache_read are still real billed tokens (a
+            // prompt-cache write/hit) and need to be added in for an accurate monthly total.
+            $usage = $decoded['usage'] ?? null;
+            if (is_array($usage)) {
+                $summary['input_tokens'] = isset($usage['input_tokens']) ? (int) $usage['input_tokens'] : null;
+                $summary['output_tokens'] = isset($usage['output_tokens']) ? (int) $usage['output_tokens'] : null;
+                $summary['cache_creation_input_tokens'] = isset($usage['cache_creation_input_tokens'])
+                    ? (int) $usage['cache_creation_input_tokens'] : null;
+                $summary['cache_read_input_tokens'] = isset($usage['cache_read_input_tokens'])
+                    ? (int) $usage['cache_read_input_tokens'] : null;
+            }
         }
 
         return $summary;

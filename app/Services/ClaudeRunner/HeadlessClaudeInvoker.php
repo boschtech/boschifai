@@ -176,7 +176,11 @@ class HeadlessClaudeInvoker
         $durationMs = (int) round((microtime(true) - $started) * 1000);
 
         $summary = ($timedOut || $cancelled)
-            ? ['total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null]
+            ? [
+                'total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null,
+                'input_tokens' => null, 'output_tokens' => null,
+                'cache_creation_input_tokens' => null, 'cache_read_input_tokens' => null,
+            ]
             : $this->parser->parseSummary($transcriptPath);
 
         return new ClaudeInvocationResult(
@@ -189,6 +193,10 @@ class HeadlessClaudeInvoker
             stopReason: $summary['stop_reason'],
             stderr: $errorOutput,
             cancelled: $cancelled,
+            inputTokens: $summary['input_tokens'],
+            outputTokens: $summary['output_tokens'],
+            cacheCreationInputTokens: $summary['cache_creation_input_tokens'],
+            cacheReadInputTokens: $summary['cache_read_input_tokens'],
         );
     }
 

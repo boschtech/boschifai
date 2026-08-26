@@ -78,6 +78,10 @@ class StepExecutionService
             'duration_ms' => $result->durationMs,
             'total_cost_usd' => $result->totalCostUsd,
             'num_turns' => $result->numTurns,
+            'input_tokens' => $result->inputTokens,
+            'output_tokens' => $result->outputTokens,
+            'cache_creation_input_tokens' => $result->cacheCreationInputTokens,
+            'cache_read_input_tokens' => $result->cacheReadInputTokens,
             'stop_reason' => $result->stopReason,
             'timed_out' => $result->timedOut,
         ]);

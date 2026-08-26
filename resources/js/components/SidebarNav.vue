@@ -53,6 +53,7 @@ const SECTIONS = [
             { name: 'reporting.confidence', label: 'Confidence Reports' },
             { name: 'reporting.coverage', label: 'Coverage Reports' },
             { name: 'reporting.test-history', label: 'Test History' },
+            { name: 'reporting.token-usage', label: 'Token Usage' },
         ],
     },
 ];

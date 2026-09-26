@@ -6,7 +6,12 @@ approves — generates a test plan, test cases, and PHPUnit Feature test code, r
 against the target repo, and (after a second human approval) opens a real GitHub pull request
 and reports back a composite confidence score once CI concludes.
 
-**Scope today:** one test type (PHPUnit Feature tests). Target repos are connected via
+A visual overview of the solution, its architecture and technology stack lives in
+[`docs/overview.html`](docs/overview.html) — open it directly in a browser.
+
+**Scope today:** requirement runs generate PHPUnit Feature tests against a human-specified
+target file; coverage runs pick their own target file and generate tests in whatever framework
+the target repo already uses (see `PromptBuilder` and `GitStatusDiffCollector::classify()`). Target repos are connected via
 "Connect Repo" (`resources/js/pages/GithubSettingsPage.vue`) — either a GitHub account's repos
 (OAuth), or a repo already checked out on disk. Each connected repo gets exactly ONE persistent
 checkout that every Run against it shares and works on directly (see
@@ -14,6 +19,20 @@ checkout that every Run against it shares and works on directly (see
 `var/boschifai/repos/<name>` and kept in sync per run; a local repo is used at its own path and
 is never cloned, reset, or otherwise force-modified. Because the checkout is shared, only one Run
 per repo may be in flight at a time (`RunController::store()` rejects a second one with a 422).
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Backend | Laravel 11 (PHP 8.2+; the Docker image runs PHP 8.3), Guzzle, `symfony/process` |
+| Frontend | Vue 2.7 SPA, Vue Router 3, Vuex 3, Vite 6, TailwindCSS 3 (+ typography), `marked` + DOMPurify for Markdown artifacts |
+| Database / queue | MySQL 8 in Docker, SQLite bare-host; Laravel `database` queue driver |
+| AI engine | Claude Code CLI run headless (`claude -p`), model `BOSCHIFAI_CLAUDE_MODEL` (default `claude-sonnet-5`) |
+| Scaffolding CLI | `boschifai`: Rust workspace (`boschifai-cli`, `boschifai-core`, `boschifai-ai`) vendored at `docker/boschifai-cli/`. `boschifai init` installs 15 `.claude/commands`, 29 `.claude/skills` and 16 Copilot `.github/prompts` templates |
+| GitHub | OAuth App (`repo` scope), REST API for PRs and check runs, optional `github-mcp-server` push path |
+| Test execution | Isolated `test-runner` sidecar (PHP 8.3 + Composer + Node 20 + pcov), JUnit XML parsing |
+| Runtime | Docker Compose: `app`, `worker`, `test-runner`, `db` |
+| Tests | PHPUnit 11, Mockery, in-memory SQLite (`tests/Unit`, `tests/Feature`) |
 
 ## Architecture
 
@@ -99,6 +118,23 @@ queued job (`app/Jobs/*.php`) chained automatically:
    workflow files are touched) and computes the composite **confidence score**
    (`ConfidenceScoreCalculator`, weights in `config/boschifai.php`) from testability, test-case
    quality, local execution, and CI.
+
+### Confidence score
+
+`ConfidenceScoreCalculator` combines four 0–100 signals using weights from
+`config/boschifai.php` (`confidence_weights`). The weights are a starting proposal, not a
+validated formula:
+
+| Signal | Weight | Source |
+| --- | --- | --- |
+| Testability | 25 | `/boschifai-review`'s testability score |
+| Test-case quality | 20 | Validator verdict: `APPROVED` = 100, `NEEDS_FIXES` = 40, verdict not found = 80 |
+| Local execution | 25 | Pass rate from the `test-runner` JUnit results |
+| CI | 30 | Check-run conclusion: `success` = 100, anything else = 0 |
+
+At Gate 2, CI hasn't run yet, so `calculatePrePush()` leaves CI out and rescales the other
+three weights to sum to 100. That keeps the Gate 2 score from being dragged down by a missing
+CI result.
 
 Two run types skip most of this entirely — **Standalone Actions** (`build_skills` /
 `build_knowledge_base`, `RunStandaloneActionJob`) are a single Claude invocation that reads the
@@ -186,6 +222,14 @@ its own `$timeout`/`$tries` properties (see `app/Jobs/*.php`), so a plain `php a
 queue:work` respects those per-job overrides correctly — just don't override them back down
 with a global `--timeout` flag lower than a job's own `$timeout`.
 
+For the same reason, `DB_QUEUE_RETRY_AFTER` (`.env.example`: `3600`) must be longer than the
+longest job `$timeout` (currently `RunCodeGenerationJob`, 1900s). If it isn't, the `database`
+queue driver treats a still-running job as lost and hands the same run step to another
+worker.
+
+For local development, `composer dev` starts the server, a queue listener, `pail` log tailing
+and the Vite dev server together.
+
 ## Running tests
 
 ```bash
@@ -197,6 +241,10 @@ database (`database/database.sqlite`) — this was previously misconfigured (com
 Laravel 11's own scaffold default) and would silently wipe real local data every time the test
 suite ran. If you ever see your local Runs disappear after running tests, check that
 `DB_CONNECTION`/`DB_DATABASE` are still uncommented in `phpunit.xml`.
+
+Unit tests (`tests/Unit/Services`) cover the parsers, `PromptBuilder`, `LocalTestRunner`'s
+recipe handling, `RepoCheckoutManager` auth, and GitHub OAuth. Feature tests (`tests/Feature`)
+cover every `/api/*` endpoint group, the OAuth controllers and the pipeline jobs.
 
 ## Running with Docker
 
@@ -257,6 +305,46 @@ write path:
   spend, since that table is written by exactly one code path
   (`StepExecutionService`/`HeadlessClaudeInvoker`) and nothing else ever authenticates against
   that key. Also linked directly from the header badge.
+
+## API reference
+
+All endpoints are under `/api` (`routes/api.php`). None are authenticated (see
+[What's not wired up yet](#whats-not-wired-up-yet)).
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET / POST | `/runs` | List runs, or create one (requirement, coverage or standalone action, with optional attachments) |
+| GET / DELETE | `/runs/{run}` | Show run detail, or delete it |
+| GET | `/runs/{run}/activity` | Live activity tail for the run page |
+| POST | `/runs/{run}/steps/{step}/retry` | Retry a failed step |
+| POST | `/runs/{run}/local-execution/rerun` | Re-run local test execution |
+| POST | `/runs/{run}/local-execution/fix-failing-tests` | Ask Claude to fix failing generated tests in place |
+| GET | `/runs/{run}/coverage-report/{path}` | Serve the per-run HTML coverage report |
+| POST | `/runs/{run}/cancel`, `/archive`, `/unarchive` | Run lifecycle |
+| POST | `/runs/{run}/approvals/gap-analysis` | Gate 1 decision |
+| POST | `/runs/{run}/approvals/push` | Gate 2 decision |
+| GET / DELETE | `/repo-configs`, `/repo-configs/{repoConfig}` | List or disconnect connected repos |
+| GET | `/repo-configs/{repoConfig}/browse-files` | Browse files in a repo's checkout |
+| GET | `/github/connections` | List GitHub OAuth connections |
+| GET / POST | `/github/connections/{connection}/repositories` | List or connect repos |
+| DELETE / POST | `/github/connections/{connection}/organizations/{organization}` (`/restore`) | Exclude or restore an organization |
+| GET / POST | `/local-repos/browse`, `/local-repos/connect` | Browse and connect on-disk repos under the configured root |
+| GET | `/usage/tokens-this-month` (`/details`) | Token usage totals and per-invocation detail |
+
+Web routes (`routes/web.php`): `/github/authorize` and `/github/callback` for the OAuth flow,
+and a catch-all that serves the SPA.
+
+### Frontend pages
+
+| Route | Page |
+| --- | --- |
+| `/` | Home |
+| `/runs`, `/runs/:id` | Runs list and run detail (timeline, gate panels, live activity) |
+| `/runs/new`, `/runs/new/coverage`, `/runs/:id/edit` | New requirement run, new coverage run, edit and re-submit |
+| `/standalone/building-skills`, `/standalone/building-knowledge-base` | Standalone actions |
+| `/settings/github` | Connect Repo (GitHub OAuth + local repos) |
+| `/tools-requirement` | Placeholder: pulling requirements from Jira/Monday.com isn't built yet |
+| `/reporting/*` | Confidence, coverage, test history and token usage reports |
 
 ## Troubleshooting
 
@@ -324,6 +412,10 @@ a clear error rather than pretending to succeed:
   flight (enforced in `RunController::store()`), a deliberate simplification the shared-checkout
   design accepts rather than solves for; fine for today's usage, would need real
   locking/isolation to support real concurrent runs against the same repo.
+- **Requirements from external tools** — the "Tools Requirement" page (Jira, Monday.com) is a
+  placeholder only.
+- **Per-run cost ceiling** — `boschifai.claude.max_cost_per_run_usd` exists in config but has
+  no agreed dollar figure and isn't enforced yet.
 
 ## Project layout
 
@@ -353,3 +445,4 @@ a clear error rather than pretending to succeed:
   Laravel bootstrap — see its own docblock for why)
 - `docker/boschifai-cli` — the vendored Rust source for the `boschifai` CLI
 - `docker-compose.yml` — see [Running with Docker](#running-with-docker)
+- `docs/overview.html` — self-contained visual overview (what it does, architecture, stack)

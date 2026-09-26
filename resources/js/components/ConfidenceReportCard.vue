@@ -9,24 +9,26 @@
             These weights are a starting proposal for the team to tune, not a validated formula.
         </p>
 
-        <table class="w-full text-sm">
-            <thead class="text-left text-fg-muted">
-                <tr>
-                    <th class="py-1 font-semibold">Component</th>
-                    <th class="py-1 font-semibold">Score</th>
-                    <th class="py-1 font-semibold">Weight</th>
-                    <th class="py-1 font-semibold">Contribution</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr v-for="row in rows" :key="row.key" class="border-t border-border">
-                    <td class="py-2 text-fg">{{ row.label }}</td>
-                    <td class="py-2 text-fg">{{ row.score }}%</td>
-                    <td class="py-2 text-fg">{{ row.weight }}%</td>
-                    <td class="py-2 text-fg">{{ row.contribution.toFixed(1) }}</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="ml-2 overflow-hidden rounded-lg border border-border">
+            <table class="w-full text-sm">
+                <thead class="text-left text-fg-muted">
+                    <tr>
+                        <th class="py-2 pl-4 font-semibold">Component</th>
+                        <th class="py-2 font-semibold">Score</th>
+                        <th class="py-2 font-semibold">Weight</th>
+                        <th class="py-2 font-semibold">Contribution</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in rows" :key="row.key" class="border-t border-border">
+                        <td class="py-2 pl-4 text-fg">{{ row.label }}</td>
+                        <td class="py-2 text-fg">{{ row.score }}%</td>
+                        <td class="py-2 text-fg">{{ row.weight }}%</td>
+                        <td class="py-2 text-fg">{{ row.contribution.toFixed(1) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </template>
 

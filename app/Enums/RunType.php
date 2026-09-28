@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * `requirement` is today's only flow: a written requirement + a human-specified
+ * `requirement` is today's only flow: a written requirement + an optional human-specified
  * `target_file_path`. `coverage` is the new flow: a plain "increase coverage for X"
  * instruction with no known target file — the pipeline works that out itself (see
  * RunTestPlanJob's `RECOMMENDED_TARGET_FILE:` extraction).

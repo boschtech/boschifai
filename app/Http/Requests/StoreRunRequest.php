@@ -20,18 +20,16 @@ class StoreRunRequest extends FormRequest
             'run_type' => ['sometimes', 'string', Rule::in(array_column(RunType::cases(), 'value'))],
             // Holds a written requirement (`requirement` mode) or a plain coverage instruction
             // (`coverage` mode, e.g. "increase coverage for the billing module") — both are free
-            // text end-to-end (see RunGapAnalysisJob), so one column/rule serves both.
-            'requirement_text' => ['required', 'string', 'max:20000'],
-            // J3 (plan §3): for `requirement` mode the target file is always human-specified,
-            // never inferred — a wrong guess on a bank-integrated, multi-tenant codebase produces
-            // confidently wrong tests with no obvious failure signal. `coverage` mode has no
-            // target file yet at submission time — the pipeline works it out itself (see
-            // RunTestPlanJob's RECOMMENDED_TARGET_FILE extraction) — so it's optional here;
-            // prepareForValidation() below fills in '' so the NOT NULL column is still satisfied.
-            'target_file_path' => [
-                Rule::requiredIf(fn () => $this->runTypeInput() === RunType::Requirement->value),
-                'nullable', 'string', 'max:500',
-            ],
+            // text end-to-end (see RunGapAnalysisJob), so one column/rule serves both. The column
+            // is longText and Claude reads it from a file (never inlined into the CLI prompt), so
+            // this cap is just a sanity bound (~25k tokens) — not a storage or prompt limit.
+            'requirement_text' => ['required', 'string', 'max:100000'],
+            // Optional for every run type. `coverage` mode works the target out itself (see
+            // RunTestPlanJob's RECOMMENDED_TARGET_FILE extraction); in `requirement` mode a blank
+            // target makes code generation identify the source file from the approved test cases
+            // instead (see PromptBuilder::codeGeneration()) — the generated test is still reviewed
+            // at Gate 2. prepareForValidation() below fills in '' so the NOT NULL column is satisfied.
+            'target_file_path' => ['nullable', 'string', 'max:500'],
             // Which RepoConfig this run targets — no longer implicitly hardcoded to "rams"
             // now that repos can be connected via the GitHub App flow.
             'repo_config_id' => ['required', 'integer', 'exists:repo_configs,id'],
@@ -55,8 +53,7 @@ class StoreRunRequest extends FormRequest
     {
         $standaloneTypes = [RunType::BuildSkills->value, RunType::BuildKnowledgeBase->value];
 
-        if (($this->runTypeInput() === RunType::Coverage->value || in_array($this->runTypeInput(), $standaloneTypes, true))
-            && ! $this->filled('target_file_path')) {
+        if (! $this->filled('target_file_path')) {
             $this->merge(['target_file_path' => '']);
         }
 

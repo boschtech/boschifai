@@ -89,4 +89,24 @@ class PromptBuilderTest extends TestCase
         // requirement-mode codeGeneration() prompt does.
         $this->assertStringNotContainsString('PHPUnit', $prompt);
     }
+
+    public function test_code_generation_passes_the_target_file_when_one_is_given(): void
+    {
+        $prompt = $this->prompts->codeGeneration('app/Http/Controllers/CustomFieldController.php', '.boschifai/test_cases_abc123.md');
+
+        $this->assertStringContainsString('/boschifai-gen-component --file app/Http/Controllers/CustomFieldController.php', $prompt);
+        $this->assertStringContainsString('.boschifai/test_cases_abc123.md', $prompt);
+        $this->assertStringNotContainsString('No target file was specified', $prompt);
+    }
+
+    public function test_code_generation_asks_claude_to_identify_the_target_when_none_is_given(): void
+    {
+        $prompt = $this->prompts->codeGeneration('', '.boschifai/test_cases_abc123.md');
+
+        $this->assertStringContainsString('No target file was specified', $prompt);
+        $this->assertStringContainsString('never a test file', $prompt);
+        $this->assertStringContainsString('GENERATED_TEST_FILE:', $prompt);
+        // An empty `--file ` would make /boschifai-gen-component fall back to "the open editor file".
+        $this->assertDoesNotMatchRegularExpression('/--file\s*$/m', $prompt);
+    }
 }

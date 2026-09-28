@@ -166,9 +166,12 @@ export default {
         // per-test-case heading convention (confirmed against a real generated test_cases_*.md).
         // Requirement mode shows a test PLAN at this gate, not formatted test cases yet (those
         // are only generated after Gate 1 is approved), so this is naturally 0 there and the
-        // badge stays hidden — it's really a coverage-mode-only count in practice.
+        // badge stays hidden — it's really a coverage-mode-only count in practice. The API sends
+        // null (not undefined) when there's no test-cases artifact yet, so the prop's '' default
+        // never applies — without the `?? ''` a requirement run with a score threw here and Vue
+        // dropped the whole panel, leaving Gate 1 blank.
         testCaseCount() {
-            return (this.testCasesMarkdown.match(/^##\s+TC-\S+/gm) || []).length;
+            return ((this.testCasesMarkdown ?? '').match(/^##\s+TC-\S+/gm) || []).length;
         },
     },
 

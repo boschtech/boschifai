@@ -62,11 +62,12 @@
             ></textarea>
 
             <template v-if="form.run_type === 'requirement'">
-                <label class="block text-sm font-medium text-fg mb-1">Target file</label>
+                <label class="block text-sm font-medium text-fg mb-1">Target file (optional)</label>
                 <p class="text-xs text-fg-muted mb-1">
                     Path (within the target repo) to the controller/service this requirement targets, e.g.
                     <code class="text-fg">app/Http/Controllers/CustomFieldController.php</code>.
-                    Required — Boschifai does not guess the target on a bank-integrated, multi-tenant codebase.
+                    Leave blank to let Boschifai identify the target from the approved test cases — check the
+                    generated test's target carefully at the push review if you do.
                     <template v-if="!editingRunId && selectedRepoIds.length > 1">
                         The same path is used for every selected repository.
                     </template>
@@ -75,7 +76,6 @@
                     <input
                         v-model="form.target_file_path"
                         type="text"
-                        required
                         class="w-full rounded-sm border border-border bg-surface px-3 py-2 text-sm text-fg font-mono transition focus:outline-none focus:border-primary"
                         placeholder="app/Http/Controllers/..."
                     />

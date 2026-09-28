@@ -66,14 +66,28 @@ class PromptBuilder
         PROMPT;
     }
 
+    /**
+     * The target file is optional on the Write Requirement form. When it's blank, Claude is asked
+     * to pick the application source file from the approved test cases rather than being handed
+     * an empty `--file`, which /boschifai-gen-component would otherwise treat as "the file open in
+     * the editor" — meaningless in a headless run.
+     */
     public function codeGeneration(string $targetFilePath, string $testCasesRelativePath): string
     {
+        $invocation = $targetFilePath !== ''
+            ? "/boschifai-gen-component --file {$targetFilePath}"
+            : <<<TEXT
+            No target file was specified. First identify the single APPLICATION SOURCE file (the
+            controller/service under test — never a test file) that these test cases exercise, then
+            run /boschifai-gen-component with `--file` set to that path.
+            TEXT;
+
         return <<<PROMPT
         Test cases for this requirement have already been generated and approved — see
         {$testCasesRelativePath} in this directory. Implement PHPUnit Feature tests covering
         each test case already defined there.
 
-        /boschifai-gen-component --file {$targetFilePath}
+        {$invocation}
 
         {$this->generatedTestFileSentinelInstruction()}
         PROMPT;

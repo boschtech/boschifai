@@ -64,7 +64,7 @@ export default {
         // testCaseCount — kept in sync there rather than shared, since these two components have
         // no existing common base to hang it off without a bigger refactor.
         testCaseCount() {
-            return (this.testCasesMarkdown.match(/^##\s+TC-\S+/gm) || []).length;
+            return ((this.testCasesMarkdown ?? '').match(/^##\s+TC-\S+/gm) || []).length;
         },
     },
 };

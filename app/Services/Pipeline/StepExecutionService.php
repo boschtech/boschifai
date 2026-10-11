@@ -117,7 +117,7 @@ class StepExecutionService
                 ? RunStepStatus::TimedOut
                 : ($result->succeeded() ? RunStepStatus::Succeeded : RunStepStatus::Failed),
             'finished_at' => now(),
-            'error_message' => $result->succeeded() ? null : $result->stderr,
+            'error_message' => $result->succeeded() ? null : $result->failureReason(),
         ]);
 
         return new StepOutcome($result, $artifacts);

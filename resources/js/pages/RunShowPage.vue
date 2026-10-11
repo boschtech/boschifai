@@ -88,7 +88,10 @@
             </div>
 
             <div v-else-if="run.state === 'failed'" class="rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
-                <p class="mb-3">Run failed at step <strong>{{ run.failed_step }}</strong>: {{ run.error_message }}</p>
+                <p class="mb-1">Run failed at step <strong>{{ run.failed_step }}</strong>.</p>
+                <!-- Server always records a reason now (ClaudeInvocationResult::failureReason());
+                     the fallback only covers runs that failed before that existed. -->
+                <p class="mb-3 whitespace-pre-line">Reason: {{ run.error_message || 'No reason was recorded for this failure — check the step\'s transcript in the worker logs.' }}</p>
                 <button
                     type="button"
                     class="rounded-sm bg-fg-strong px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90"
@@ -96,6 +99,16 @@
                 >
                     Retry step
                 </button>
+            </div>
+
+            <div v-else-if="run.state === 'gap_analysis_changes_requested'" class="rounded-md border border-border bg-surface-alt p-4 text-sm text-fg">
+                Changes were requested at Gate 1: {{ run.rejection_comment }}
+                <template v-if="run.revised_run_id">
+                    A revised run was started with this feedback —
+                    <router-link :to="{ name: 'runs.show', params: { id: run.revised_run_id } }" class="text-primary underline">
+                        view it here
+                    </router-link>.
+                </template>
             </div>
 
             <div v-else-if="['gap_analysis_rejected', 'push_rejected'].includes(run.state)" class="rounded-md border border-border bg-surface-alt p-4 text-sm text-fg">
@@ -206,7 +219,14 @@ export default {
 
         async decide(gate, decision, comment) {
             if (gate === 'gap-analysis') {
-                await this.decideGapAnalysis({ id: this.id, decision, comment });
+                const run = await this.decideGapAnalysis({ id: this.id, decision, comment });
+                // Follow the reviewer straight to the rerun (see RunApprovalController::
+                // startRevisedRun) — the `id` watcher reloads and starts polling it.
+                if (decision === 'changes_requested' && run?.revised_run_id) {
+                    this.$router.push({ name: 'runs.show', params: { id: run.revised_run_id } });
+
+                    return;
+                }
             } else {
                 await this.decidePush({ id: this.id, decision, comment });
             }

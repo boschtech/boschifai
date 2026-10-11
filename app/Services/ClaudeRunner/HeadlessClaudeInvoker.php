@@ -180,6 +180,7 @@ class HeadlessClaudeInvoker
                 'total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null,
                 'input_tokens' => null, 'output_tokens' => null,
                 'cache_creation_input_tokens' => null, 'cache_read_input_tokens' => null,
+                'error_message' => null,
             ]
             : $this->parser->parseSummary($transcriptPath);
 
@@ -197,6 +198,7 @@ class HeadlessClaudeInvoker
             outputTokens: $summary['output_tokens'],
             cacheCreationInputTokens: $summary['cache_creation_input_tokens'],
             cacheReadInputTokens: $summary['cache_read_input_tokens'],
+            resultError: $summary['error_message'],
         );
     }
 

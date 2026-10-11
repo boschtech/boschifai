@@ -74,11 +74,11 @@ class RunStandaloneActionJob implements ShouldQueue
         try {
             $workspace->prepare($run);
         } catch (\Throwable $e) {
-            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage()]);
+            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage() ?: get_class($e)]);
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => $stepKey,
-                'error_message' => $e->getMessage(),
+                'error_message' => $e->getMessage() ?: get_class($e),
             ]);
 
             return;
@@ -99,7 +99,7 @@ class RunStandaloneActionJob implements ShouldQueue
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => $stepKey,
-                'error_message' => $outcome->claudeResult->stderr,
+                'error_message' => $outcome->claudeResult->failureReason(),
             ]);
 
             return;

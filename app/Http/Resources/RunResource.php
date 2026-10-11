@@ -3,6 +3,8 @@
 namespace App\Http\Resources;
 
 use App\Enums\ArtifactKind;
+use App\Enums\RunState;
+use App\Models\Run;
 use App\Services\Confidence\ConfidenceScoreCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,6 +34,10 @@ class RunResource extends JsonResource
             // visible and each approval still maps to one fixed, unedited set of inputs.
             'requirement_text' => $this->requirement_text,
             'previous_run_id' => $this->previous_run_id,
+            // Set once "Request changes" at Gate 1 has spun up a follow-up run from this one.
+            'revised_run_id' => $this->state === RunState::GapAnalysisChangesRequested
+                ? Run::where('previous_run_id', $this->id)->latest()->value('id')
+                : null,
             'previous_run_summary' => $this->previousRun
                 ? Str::limit(trim(explode("\n", trim($this->previousRun->requirement_text))[0] ?? ''), 80)
                 : null,

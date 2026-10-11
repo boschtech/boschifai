@@ -79,7 +79,7 @@ class RunTestPlanJob implements ShouldQueue
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::TestPlan->value,
-                'error_message' => $outcome->claudeResult->stderr,
+                'error_message' => $outcome->claudeResult->failureReason(),
             ]);
 
             return;

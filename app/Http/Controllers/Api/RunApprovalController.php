@@ -13,7 +13,10 @@ use App\Http\Resources\RunResource;
 use App\Jobs\PushAndOpenPrJob;
 use App\Jobs\RunCodeGenerationJob;
 use App\Jobs\RunTestCaseGenerationJob;
+use App\Jobs\RunGapAnalysisJob;
 use App\Models\Run;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 
 /**
  * The two mandatory human-approval gates (plan §2, §6). Every decision is recorded as a
@@ -58,11 +61,9 @@ class RunApprovalController extends Controller
             } else {
                 RunTestCaseGenerationJob::dispatch($run->id);
             }
+        } elseif ($decision === 'changes_requested') {
+            $this->startRevisedRun($run, $request->validated('comment'), $request->user()?->email ?? $request->ip());
         } else {
-            // Both "rejected" and "changes_requested" land here as one terminal state — see
-            // Judgment call J5 in the plan: starting a fresh Run with the edited requirement
-            // is a manual "New requirement" submission for MVP, not an automatic fork, since
-            // there is no edited text to carry forward at the moment this decision is made.
             $run->update([
                 'state' => RunState::GapAnalysisRejected,
                 'rejection_comment' => $request->validated('comment'),
@@ -70,6 +71,53 @@ class RunApprovalController extends Controller
         }
 
         return new RunResource($run->fresh(['repoConfig', 'steps', 'artifacts', 'executionResult', 'ciCheckResult']));
+    }
+
+    /**
+     * "Request changes" reruns Gate 1 with the reviewer's feedback instead of ending the run.
+     * Done as a new linked Run (previous_run_id, same lineage as the Edit flow — plan J5: runs
+     * are immutable) rather than re-invoking the steps on this one, for two reasons: the
+     * artifacts this approval row just hashed stay exactly as reviewed, and artifact discovery
+     * (GitStatusDiffCollector) only notices NEWLY untracked files — rewriting this run's
+     * already-untracked testability_review_<id>.md in place would never be picked up, whereas
+     * the new run's own id gives every output file a fresh name.
+     *
+     * The feedback is appended to the requirement text itself, so every Gate 1 step (review
+     * and test plan / codebase analysis and test design) reads it from the same input file.
+     */
+    private function startRevisedRun(Run $run, string $comment, ?string $requestedBy): Run
+    {
+        $revised = DB::transaction(function () use ($run, $comment, $requestedBy) {
+            // Closed first so the repo's one-active-run slot (RunController::store) is free.
+            $run->update([
+                'state' => RunState::GapAnalysisChangesRequested,
+                'rejection_comment' => $comment,
+            ]);
+
+            return Run::create([
+                'repo_config_id' => $run->repo_config_id,
+                'run_type' => $run->run_type,
+                'requirement_text' => $run->requirement_text."\n\n---\n\n## Reviewer feedback (changes requested at Gate 1)\n\n"
+                    .$comment
+                    ."\n\nRevise the analysis and plan to address this feedback.",
+                'target_file_path' => $run->target_file_path,
+                'attachment_filenames' => $run->attachment_filenames ?? [],
+                'previous_run_id' => $run->id,
+                'state' => RunState::Draft,
+                'created_by' => $requestedBy,
+            ]);
+        });
+
+        // Attachments live under the run's own id (RunController::storeAttachments), so the
+        // follow-up needs its own copy for RunGapAnalysisJob to find them.
+        $sourceDir = storage_path("app/boschifai-runs/{$run->id}/attachments");
+        if (File::isDirectory($sourceDir)) {
+            File::copyDirectory($sourceDir, storage_path("app/boschifai-runs/{$revised->id}/attachments"));
+        }
+
+        RunGapAnalysisJob::dispatch($revised->id);
+
+        return $revised;
     }
 
     public function push(DecidePushRequest $request, Run $run)

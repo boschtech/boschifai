@@ -16,14 +16,14 @@
             <button
                 type="button"
                 class="rounded-sm bg-surface border border-border px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt"
-                @click="showRequestChanges = true"
+                @click="openSecondary('changes')"
             >
                 Request changes
             </button>
             <button
                 type="button"
                 class="rounded-sm bg-surface border border-danger/40 px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger/10"
-                @click="showReject = true"
+                @click="openSecondary('reject')"
             >
                 Reject
             </button>
@@ -86,14 +86,14 @@
             <button
                 type="button"
                 class="rounded-sm bg-surface border border-border px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt"
-                @click="showRequestChanges = true"
+                @click="openSecondary('changes')"
             >
                 Request changes
             </button>
             <button
                 type="button"
                 class="rounded-sm bg-surface border border-danger/40 px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger/10"
-                @click="showReject = true"
+                @click="openSecondary('reject')"
             >
                 Reject
             </button>
@@ -103,6 +103,16 @@
             <label class="block text-sm font-medium text-fg mb-1">
                 Comment ({{ showRequestChanges ? 'what should change' : 'reason for rejection' }}) — required
             </label>
+            <p class="text-xs text-fg-muted mb-1">
+                <template v-if="showRequestChanges">
+                    This run is closed and a new linked run starts straight away, re-running the
+                    {{ isCoverage ? 'codebase analysis and test design' : 'testability review and test plan' }}
+                    with your feedback added to the {{ isCoverage ? 'instruction' : 'requirement' }}.
+                </template>
+                <template v-else>
+                    Ends this run — nothing is generated or pushed.
+                </template>
+            </p>
             <textarea v-model="comment" rows="3" class="w-full rounded-sm border border-border bg-surface px-3 py-2 text-sm text-fg mb-2 transition focus:outline-none focus:border-primary"></textarea>
             <button
                 type="button"
@@ -176,6 +186,13 @@ export default {
     },
 
     methods: {
+        // Only one of the two comment modes can be open at a time — otherwise clicking Reject
+        // after Request changes would still submit as changes_requested.
+        openSecondary(mode) {
+            this.showRequestChanges = mode === 'changes';
+            this.showReject = mode === 'reject';
+        },
+
         confirmSecondaryAction() {
             const decision = this.showRequestChanges ? 'changes_requested' : 'rejected';
             this.$emit(decision === 'rejected' ? 'reject' : 'request-changes', this.comment);

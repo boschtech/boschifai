@@ -57,6 +57,7 @@ const STATE_TO_STEP_INDEX = {
     gap_analysis_running: 0,
     gap_analysis_ready: 1,
     gap_analysis_rejected: 1,
+    gap_analysis_changes_requested: 1,
     generation_running: 2,
     generation_blocked: 2,
     local_execution_running: 3,

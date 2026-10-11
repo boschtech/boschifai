@@ -19,12 +19,41 @@ class ClaudeInvocationResult
         public readonly ?int $outputTokens = null,
         public readonly ?int $cacheCreationInputTokens = null,
         public readonly ?int $cacheReadInputTokens = null,
+        // Claude's own reported failure from the transcript's "result" event (see
+        // ClaudeTranscriptParser::resultErrorMessage) — API errors such as low credit land here,
+        // not in $stderr.
+        public readonly ?string $resultError = null,
     ) {
     }
 
     public function succeeded(): bool
     {
-        return ! $this->timedOut && ! $this->cancelled && $this->exitCode === 0;
+        return ! $this->timedOut && ! $this->cancelled && $this->exitCode === 0 && $this->resultError === null;
+    }
+
+    /**
+     * Human-readable reason for a failed invocation — never empty, so a failed step always
+     * tells the reviewer why. Most specific source first: Claude's own reported error, then
+     * running out of output tokens, then a timeout, then whatever the CLI wrote to stderr.
+     */
+    public function failureReason(): string
+    {
+        $reasons = array_filter([
+            $this->resultError,
+            $this->stopReason === 'max_tokens'
+                ? 'Claude ran out of output tokens (max_tokens) before finishing.'
+                : null,
+            $this->timedOut
+                ? 'Timed out after '.round($this->durationMs / 1000).'s — the step did not finish within its time limit.'
+                : null,
+            trim($this->stderr) !== '' ? trim($this->stderr) : null,
+        ]);
+
+        if ($reasons !== []) {
+            return implode("\n", array_unique($reasons));
+        }
+
+        return "Claude exited with code {$this->exitCode} without reporting a reason.";
     }
 
     /** For a guard that fires before any process was ever started (e.g. a pre-check). */

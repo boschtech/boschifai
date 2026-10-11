@@ -6,6 +6,15 @@
                 <span v-if="elapsedLabel" class="text-xs text-fg-muted">{{ elapsedLabel }}</span>
                 <button
                     type="button"
+                    :aria-expanded="showOutput ? 'true' : 'false'"
+                    aria-controls="live-activity-output"
+                    class="rounded-sm border border-border px-3 py-1 text-xs font-medium text-fg transition hover:bg-surface-alt"
+                    @click="toggleOutput"
+                >
+                    {{ showOutput ? 'Hide output' : 'Show output' }}
+                </button>
+                <button
+                    type="button"
                     :disabled="cancelRequested"
                     class="rounded-sm border border-danger/40 px-3 py-1 text-xs font-medium text-danger transition hover:bg-danger/10 disabled:opacity-50"
                     @click="confirmStop"
@@ -29,7 +38,8 @@
         </div>
 
         <pre
-            v-if="activity && activity.log_lines && activity.log_lines.length"
+            v-if="showOutput && activity && activity.log_lines && activity.log_lines.length"
+            id="live-activity-output"
             ref="logBox"
             class="mt-2 max-h-[70vh] overflow-y-auto whitespace-pre-wrap rounded-lg bg-gray-900 p-3 text-xs text-gray-100 font-mono"
         >{{ activity.log_lines.join('\n\n') }}</pre>
@@ -52,6 +62,19 @@
 <script>
 import ConfirmDialog from './ConfirmDialog.vue';
 
+// Per-browser preference, not per-run: someone who hides Claude's output once shouldn't have to
+// hide it again on every run. Only the raw log is hidden — step, elapsed time, status message,
+// cost and Stop stay visible either way, and polling continues so re-showing is instant.
+const OUTPUT_STORAGE_KEY = 'boschifai-live-output';
+
+function readShowOutput() {
+    try {
+        return localStorage.getItem(OUTPUT_STORAGE_KEY) !== 'hidden';
+    } catch (e) {
+        return true;
+    }
+}
+
 export default {
     name: 'LiveActivityPanel',
 
@@ -67,6 +90,7 @@ export default {
             activity: null,
             pollTimer: null,
             showStopConfirm: false,
+            showOutput: readShowOutput(),
         };
     },
 
@@ -110,14 +134,26 @@ export default {
             this.$emit('stop');
         },
 
+        toggleOutput() {
+            this.showOutput = !this.showOutput;
+            try {
+                localStorage.setItem(OUTPUT_STORAGE_KEY, this.showOutput ? 'shown' : 'hidden');
+            } catch (e) {
+                // Storage blocked (private window etc.) — the toggle still works for this page view.
+            }
+            if (this.showOutput) this.$nextTick(this.scrollLogToBottom);
+        },
+
+        scrollLogToBottom() {
+            const box = this.$refs.logBox;
+            if (box) box.scrollTop = box.scrollHeight;
+        },
+
         async poll() {
             try {
                 const { data } = await window.axios.get(`/api/runs/${this.runId}/activity`);
                 this.activity = data;
-                this.$nextTick(() => {
-                    const box = this.$refs.logBox;
-                    if (box) box.scrollTop = box.scrollHeight;
-                });
+                this.$nextTick(this.scrollLogToBottom);
             } catch (e) {
                 // A transient poll failure shouldn't stop the loop — the main run poll (see
                 // RunShowPage) is the source of truth for whether the run itself has moved on.

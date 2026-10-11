@@ -100,11 +100,11 @@ class PushAndOpenPrJob implements ShouldQueue
                 $pr = $prService->create($run, $checkoutPath, $branchName);
             }
         } catch (\Throwable $e) {
-            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage()]);
+            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage() ?: get_class($e)]);
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::Push->value,
-                'error_message' => $e->getMessage(),
+                'error_message' => $e->getMessage() ?: get_class($e),
             ]);
 
             return;
@@ -155,7 +155,7 @@ class PushAndOpenPrJob implements ShouldQueue
         }
 
         if (! $outcome->claudeResult->succeeded()) {
-            throw new RuntimeException('GitHub MCP push failed: '.$outcome->claudeResult->stderr);
+            throw new RuntimeException('GitHub MCP push failed: '.$outcome->claudeResult->failureReason());
         }
 
         $pushResult = $transcriptParser->extractPushResult($outcome->claudeResult->rawTranscriptPath);

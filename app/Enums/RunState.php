@@ -14,6 +14,10 @@ enum RunState: string
     case GapAnalysisRunning = 'gap_analysis_running';
     case GapAnalysisReady = 'gap_analysis_ready';
     case GapAnalysisRejected = 'gap_analysis_rejected';
+    // "Request changes" at Gate 1 — not a rejection: this run is closed and a linked follow-up
+    // run (previous_run_id → this one) reruns Gate 1 with the reviewer's feedback. Terminal so
+    // the follow-up can take over the repo's shared checkout (see RunController::store's guard).
+    case GapAnalysisChangesRequested = 'gap_analysis_changes_requested';
 
     case GenerationRunning = 'generation_running';
     case GenerationBlocked = 'generation_blocked';
@@ -40,6 +44,7 @@ enum RunState: string
     {
         return in_array($this, [
             self::GapAnalysisRejected,
+            self::GapAnalysisChangesRequested,
             self::GenerationBlocked,
             self::PushRejected,
             self::ReportReady,

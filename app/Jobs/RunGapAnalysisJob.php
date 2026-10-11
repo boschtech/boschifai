@@ -93,11 +93,11 @@ class RunGapAnalysisJob implements ShouldQueue
             // reset/clean wiped a GitHub-connected repo's working tree.
             $attachmentRelativePaths = $isCoverage ? [] : $this->copyAttachmentsInto($checkoutPath, $run);
         } catch (\Throwable $e) {
-            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage()]);
+            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage() ?: get_class($e)]);
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::GapAnalysis->value,
-                'error_message' => $e->getMessage(),
+                'error_message' => $e->getMessage() ?: get_class($e),
             ]);
 
             return;
@@ -122,7 +122,7 @@ class RunGapAnalysisJob implements ShouldQueue
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::GapAnalysis->value,
-                'error_message' => $outcome->claudeResult->stderr,
+                'error_message' => $outcome->claudeResult->failureReason(),
             ]);
 
             return;

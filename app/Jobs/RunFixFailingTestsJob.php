@@ -77,11 +77,11 @@ class RunFixFailingTestsJob implements ShouldQueue
                 config('boschifai.claude.timeouts.fix_failing_tests'),
             );
         } catch (\Throwable $e) {
-            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage()]);
+            $step->update(['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $e->getMessage() ?: get_class($e)]);
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::FixFailingTests->value,
-                'error_message' => $e->getMessage(),
+                'error_message' => $e->getMessage() ?: get_class($e),
             ]);
 
             return;
@@ -95,7 +95,7 @@ class RunFixFailingTestsJob implements ShouldQueue
             $run->update([
                 'state' => RunState::Failed,
                 'failed_step' => RunStepKey::FixFailingTests->value,
-                'error_message' => $outcome->claudeResult->stderr,
+                'error_message' => $outcome->claudeResult->failureReason(),
             ]);
 
             return;

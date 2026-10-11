@@ -21,6 +21,7 @@ class ClaudeTranscriptParser
      *     total_cost_usd: ?float, num_turns: ?int, stop_reason: ?string,
      *     input_tokens: ?int, output_tokens: ?int,
      *     cache_creation_input_tokens: ?int, cache_read_input_tokens: ?int,
+     *     error_message: ?string,
      * }
      */
     public function parseSummary(string $transcriptPath): array
@@ -29,6 +30,7 @@ class ClaudeTranscriptParser
             'total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null,
             'input_tokens' => null, 'output_tokens' => null,
             'cache_creation_input_tokens' => null, 'cache_read_input_tokens' => null,
+            'error_message' => null,
         ];
 
         if (! File::exists($transcriptPath)) {
@@ -44,6 +46,7 @@ class ClaudeTranscriptParser
             $summary['total_cost_usd'] = isset($decoded['total_cost_usd']) ? (float) $decoded['total_cost_usd'] : null;
             $summary['num_turns'] = isset($decoded['num_turns']) ? (int) $decoded['num_turns'] : null;
             $summary['stop_reason'] = $decoded['stop_reason'] ?? $decoded['subtype'] ?? null;
+            $summary['error_message'] = $this->resultErrorMessage($decoded);
 
             // `usage` — confirmed by reading a real transcript's "result" line (see
             // ClaudeInvocation's token columns): input_tokens/output_tokens are the two
@@ -61,6 +64,62 @@ class ClaudeTranscriptParser
         }
 
         return $summary;
+    }
+
+    /**
+     * Claude Code reports API/run failures (e.g. "Credit balance is too low", rate limits, hitting
+     * max turns) in the stream-json "result" event on STDOUT — not stderr — so a failed step
+     * whose reason was taken from stderr alone showed a blank error. Confirmed against a real
+     * transcript: `{"subtype":"success","is_error":true,"result":"Credit balance is too low",
+     * "api_error_status":400}` — note `subtype` can still say "success" there, so `is_error` and
+     * the `error_*` subtypes are checked independently.
+     */
+    private function resultErrorMessage(array $result): ?string
+    {
+        $subtype = $result['subtype'] ?? null;
+        $isErrorSubtype = is_string($subtype) && str_starts_with($subtype, 'error');
+
+        if (! ($result['is_error'] ?? false) && ! $isErrorSubtype) {
+            return null;
+        }
+
+        $detail = match ($subtype) {
+            'error_max_turns' => 'Claude reached its maximum number of turns before finishing.',
+            'error_during_execution' => 'Claude hit an error during execution.',
+            default => null,
+        };
+
+        $resultText = is_string($result['result'] ?? null) ? trim($result['result']) : '';
+        $errors = array_filter((array) ($result['errors'] ?? []), 'is_string');
+
+        $message = implode(' ', array_filter([$detail, $resultText, implode('; ', $errors)]));
+        if ($message === '') {
+            $message = 'Claude reported an error'.($subtype ? " ({$subtype})" : '').' with no further detail.';
+        }
+
+        $status = $result['api_error_status'] ?? null;
+        $raw = $status ? "Claude API error (HTTP {$status}): {$message}" : $message;
+
+        // The raw API text says what happened but not what to do — lead with the action for the
+        // errors a reviewer can actually fix, and keep the raw text after it for diagnosis.
+        $action = $this->actionFor($message, $status);
+
+        return $action ? "{$action} ({$raw})" : $raw;
+    }
+
+    private function actionFor(string $message, mixed $status): ?string
+    {
+        return match (true) {
+            (bool) preg_match('/credit balance is too low/i', $message) =>
+                'The Anthropic API account used by BoschifAI has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step.',
+            $status === 401 || (bool) preg_match('/invalid (x-)?api[ -]?key|authentication/i', $message) =>
+                'The Anthropic API key configured for BoschifAI was rejected. Ask an admin to check ANTHROPIC_API_KEY, then press Retry step.',
+            $status === 429 || (bool) preg_match('/rate limit/i', $message) =>
+                'The Anthropic API rate limit was hit. Wait a few minutes, then press Retry step.',
+            $status === 529 || (bool) preg_match('/overloaded/i', $message) =>
+                'The Anthropic API is temporarily overloaded. Wait a few minutes, then press Retry step.',
+            default => null,
+        };
     }
 
     /**

@@ -24,7 +24,7 @@ fn issue(issue_type: &str) -> String {
 
 /// Runs `args` with Jira pointed at a fake server that answers once with (status, body).
 fn with_jira(status: u16, body: String, args: &[&str]) -> std::process::Output {
-    let base_url = fake_http_server(1, move |path| {
+    let base_url = fake_http_server(move |path| {
         assert_eq!(path, "/rest/api/2/issue/AIR-42");
         (status, body.clone())
     });
@@ -159,7 +159,7 @@ fn rejects_unsupported_issue_types() {
 
 #[test]
 fn allowed_issue_types_can_be_overridden() {
-    let base_url = fake_http_server(1, |_| (200, issue("Bug")));
+    let base_url = fake_http_server(|_| (200, issue("Bug")));
 
     let output = run(boschifai()
         .args(["requirements", "review", "--jira-key", "AIR-42"])
@@ -177,7 +177,7 @@ fn custom_field_ids_can_be_overridden() {
         "fields": { "issuetype": { "name": "Story" }, "customfield_1": 8, "customfield_2": "AIR-9" }
     })
     .to_string();
-    let base_url = fake_http_server(1, move |_| (200, body.clone()));
+    let base_url = fake_http_server(move |_| (200, body.clone()));
 
     let output = run(boschifai()
         .args(["--json", "requirements", "review", "--jira-key", "AIR-42"])

@@ -3,6 +3,7 @@
 namespace App\Services\ClaudeRunner;
 
 use App\Enums\RunStepKey;
+use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -70,6 +71,8 @@ class HeadlessClaudeInvoker
      * @param  callable(): bool  $isCancelled  polled periodically while the process runs; when it
      *                                         returns true the process is stopped and the result
      *                                         carries `cancelled: true` instead of a failure.
+     * @param  ResolvedClaudeCredentials  $credentials  the provider variables and model to run
+     *                                                  with (see ClaudeCredentialResolver)
      */
     public function invoke(
         string $worktreePath,
@@ -77,14 +80,13 @@ class HeadlessClaudeInvoker
         string $transcriptPath,
         int $timeoutSeconds,
         callable $isCancelled,
+        ResolvedClaudeCredentials $credentials,
         ?string $stepKey = null,
     ): ClaudeInvocationResult {
         File::ensureDirectoryExists(dirname($transcriptPath));
         // Truncate/create up front — the callback below appends as output arrives, so the file
         // must exist (empty) before the process starts for a concurrent reader to find it.
         File::put($transcriptPath, '');
-
-        $model = config('boschifai.claude.model');
 
         $started = microtime(true);
         $errorOutput = '';
@@ -106,10 +108,14 @@ class HeadlessClaudeInvoker
             ? config('boschifai.github_mcp.pat')
             : null;
 
+        // Credentials reach the agent's own tools through its environment, so they're stripped from
+        // everything stored (see SecretRedactor).
+        $redactor = new SecretRedactor([...$credentials->secretsToRedact, $githubMcpPat]);
+
         $invoked = Process::path($worktreePath)
             ->timeout($timeoutSeconds) // defense-in-depth only — see note on manual deadline below
             ->env($this->hardening->environment([
-                'ANTHROPIC_API_KEY' => config('boschifai.claude.api_key'),
+                ...$credentials->env,
                 // Read by the github-mcp-server subprocess `claude` itself spawns (see
                 // mcp-config.json) via normal child-process environment inheritance — never
                 // written into that config file, which stays secret-free and safe to bake into
@@ -121,15 +127,15 @@ class HeadlessClaudeInvoker
                 '--output-format', 'stream-json',
                 '--verbose',
                 '--permission-mode', 'acceptEdits',
-                '--model', $model,
+                '--model', $credentials->model,
                 ...$this->hardening->cliArguments(),
                 ...($githubMcpPat ? [
                     '--mcp-config', config('boschifai.github_mcp.config_path'),
                     '--allowedTools', implode(',', self::PUSH_STEP_ALLOWED_TOOLS),
                 ] : []),
-            ], function (string $type, string $bytes) use ($transcriptPath, &$errorOutput) {
+            ], function (string $type, string $bytes) use ($transcriptPath, $redactor, &$errorOutput) {
                 if ($type === \Symfony\Component\Process\Process::OUT) {
-                    File::append($transcriptPath, $bytes);
+                    File::append($transcriptPath, $redactor->write($bytes));
                 } else {
                     $errorOutput .= $bytes;
                 }
@@ -177,6 +183,10 @@ class HeadlessClaudeInvoker
             $exitCode = -1;
             $errorOutput = $errorOutput !== '' ? $errorOutput : $e->getMessage();
         }
+
+        // wait() delivers any remaining output through the callback, so only now is it complete.
+        File::append($transcriptPath, $redactor->finish());
+        $errorOutput = $redactor->redact($errorOutput);
 
         $durationMs = (int) round((microtime(true) - $started) * 1000);
 

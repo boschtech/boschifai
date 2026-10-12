@@ -517,6 +517,15 @@ invocation:
   `apiKeyHelper`, overriding the repo's `.claude/settings.json`. `--strict-mcp-config` ignores the
   repo's `.mcp.json`. All of these were verified against a deliberately hostile checkout.
 - **The GitHub push token goes to the push step only.** Earlier steps never see it.
+- **Credentials never land in stored output.** The agent's own tools run with its credentials in
+  their environment (a Bash `env` would print the API key), so the API key and push token are
+  replaced with `[REDACTED]` in transcripts and error output before anything is written.
+
+Which credentials and model a step runs with is decided by a `ClaudeCredentialResolver`
+(`app/Services/ClaudeRunner/Credentials/`). Today every workspace uses the platform key
+(`ANTHROPIC_API_KEY`, `BOSCHIFAI_CLAUDE_MODEL`); each invocation records who paid
+(`billing_mode`), whose credentials ran it (`credential_source`) and the `model`, so prepaid
+credits and customers' own provider accounts can be added without changing the pipeline.
 
 For an install shared between customers, also set `BOSCHIFAI_FEATURE_LOCAL_REPOS=false` (the
 local-repo browser reads this host's filesystem; already-connected local repos also stop running)

@@ -9,6 +9,7 @@ use App\Models\RunArtifact;
 use App\Models\RunStep;
 use App\Services\ArtifactCollection\GitStatusDiffCollector;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
+use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use App\Services\Sandbox\RunWorkspaceManager;
 use Illuminate\Support\Facades\File;
@@ -26,6 +27,7 @@ class StepExecutionService
         private HeadlessClaudeInvoker $invoker,
         private GitStatusDiffCollector $diffCollector,
         private CancellationChecker $cancellation,
+        private ClaudeCredentialResolver $credentials,
     ) {}
 
     public function run(Run $run, string $stepKey, string $prompt, int $timeoutSeconds): StepOutcome
@@ -49,6 +51,7 @@ class StepExecutionService
         $before = $this->workspace->statusPaths($run);
 
         $transcriptPath = $this->invoker->transcriptPathFor($run->id, $stepKey);
+        $credentials = $this->credentials->resolveFor($run, $stepKey);
 
         // Created BEFORE invoking, not after: confirmed as a real bug via a live user report
         // — a ClaudeInvocation row (and therefore the transcript path the activity endpoint
@@ -61,16 +64,24 @@ class StepExecutionService
             'command' => explode("\n", trim($prompt))[array_key_last(explode("\n", trim($prompt)))],
             'prompt_text' => $prompt,
             'raw_transcript_path' => $transcriptPath,
+            'billing_mode' => $credentials->billingMode,
+            'credential_source' => $credentials->source,
+            'model' => $credentials->model,
         ]);
 
-        $result = $this->invoker->invoke(
-            $checkoutPath,
-            $prompt,
-            $transcriptPath,
-            $timeoutSeconds,
-            fn () => $this->cancellation->isRequested($run->id),
-            $stepKey,
-        );
+        try {
+            $result = $this->invoker->invoke(
+                $checkoutPath,
+                $prompt,
+                $transcriptPath,
+                $timeoutSeconds,
+                fn () => $this->cancellation->isRequested($run->id),
+                $credentials,
+                $stepKey,
+            );
+        } finally {
+            $credentials->cleanup();
+        }
 
         $invocation->update([
             'exit_code' => $result->exitCode,

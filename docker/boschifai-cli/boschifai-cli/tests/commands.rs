@@ -24,7 +24,6 @@ fn help_lists_only_the_supported_commands() {
         "data",
         "defect",
         "traceability",
-        "api-test",
         "testability",
         "gen",
         "report",
@@ -32,7 +31,7 @@ fn help_lists_only_the_supported_commands() {
     ] {
         assert!(help.contains(command), "missing {command}");
     }
-    for removed in ["qmetry", "figma"] {
+    for removed in ["qmetry", "figma", "api-test", "api-contract"] {
         assert!(
             !help.to_lowercase().contains(removed),
             "{removed} should be gone"
@@ -61,6 +60,16 @@ fn removed_integrations_are_rejected() {
     ]))
     .status
     .success());
+    assert!(
+        !run(boschifai().args(["api-test", "generate", "--file", "api/openapi.yaml"]))
+            .status
+            .success()
+    );
+    assert!(
+        !run(boschifai().args(["gen", "api-contract", "--file", "api/openapi.yaml"]))
+            .status
+            .success()
+    );
 }
 
 #[test]
@@ -69,7 +78,6 @@ fn gen_names_the_output_after_the_source_file() {
         ("unit", "unit_tests", "unit tests"),
         ("e2e", "e2e_tests", "E2E tests"),
         ("component", "component", "component"),
-        ("api-contract", "api_contract", "API contract"),
         ("performance", "perf_tests", "performance tests"),
         ("storybook", "storybook", "Storybook stories"),
     ] {
@@ -130,11 +138,6 @@ fn file_based_document_commands_report_their_output_file() {
             "traceability_refunds.md",
         ),
         (
-            vec!["api-test", "generate", "--file", "api/openapi.yaml"],
-            "api-test generate",
-            "api_tests_openapi.md",
-        ),
-        (
             vec!["testability", "review", "--file", "docs/refunds.md"],
             "testability review",
             "testability_review_refunds.md",
@@ -166,10 +169,6 @@ fn document_commands_print_a_summary_without_json() {
         (
             vec!["traceability", "generate", "--file", "docs/r.md"],
             "Generating traceability matrix from: docs/r.md",
-        ),
-        (
-            vec!["api-test", "generate", "--file", "docs/r.md"],
-            "Generating API test scenarios from: docs/r.md",
         ),
         (
             vec!["testability", "review", "--file", "docs/r.md"],
@@ -208,7 +207,6 @@ fn source_commands_need_exactly_one_source() {
         vec!["plan", "generate"],
         vec!["data", "generate"],
         vec!["traceability", "generate"],
-        vec!["api-test", "generate"],
         vec!["testability", "review"],
         vec!["test-case", "generate"],
         vec!["strategy", "create"],

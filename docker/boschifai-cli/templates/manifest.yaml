@@ -4,9 +4,7 @@ categories:
     target: .claude/commands
     templated: false
     files:
-      - boschifai-api-tests.md
       - boschifai-defect-report.md
-      - boschifai-gen-api-contract.md
       - boschifai-gen-component.md
       - boschifai-gen-e2e.md
       - boschifai-gen-performance.md
@@ -25,15 +23,11 @@ categories:
     templated: false
     files:
       - boschifai-crew/SKILL.md
-      - boschifai-gen-api-contract/SKILL.md
       - boschifai-gen-component/SKILL.md
       - boschifai-gen-component-java-event/SKILL.md
       - boschifai-gen-component-java-rest/SKILL.md
       - boschifai-gen-component-nextjs-bff/SKILL.md
       - boschifai-gen-e2e/SKILL.md
-      - boschifai-gen-e2e-api-event/SKILL.md
-      - boschifai-gen-e2e-api-nextjs/SKILL.md
-      - boschifai-gen-e2e-api-rest/SKILL.md
       - boschifai-gen-e2e-mobile/SKILL.md
       - boschifai-gen-e2e-ui/SKILL.md
       - boschifai-gen-e2e-ui-sinov8/SKILL.md
@@ -58,9 +52,7 @@ categories:
     target: .github/prompts
     templated: false
     files:
-      - boschifai-api-tests.prompt.md
       - boschifai-defect-report.prompt.md
-      - boschifai-gen-api-contract.prompt.md
       - boschifai-gen-component.prompt.md
       - boschifai-gen-e2e.prompt.md
       - boschifai-gen-performance.prompt.md

@@ -2,7 +2,6 @@ pub enum GenTarget {
     Unit,
     E2e,
     Component,
-    ApiContract,
     Performance,
     Storybook,
 }
@@ -12,7 +11,6 @@ pub fn run(target: GenTarget, file: &str, json: bool) {
         GenTarget::Unit => ("unit tests", "unit_tests"),
         GenTarget::E2e => ("E2E tests", "e2e_tests"),
         GenTarget::Component => ("component", "component"),
-        GenTarget::ApiContract => ("API contract", "api_contract"),
         GenTarget::Performance => ("performance tests", "perf_tests"),
         GenTarget::Storybook => ("Storybook stories", "storybook"),
     };

@@ -55,12 +55,6 @@ enum Commands {
         #[command(subcommand)]
         action: TraceabilityAction,
     },
-    /// Generate API test scenarios and contract tests
-    #[command(name = "api-test")]
-    ApiTest {
-        #[command(subcommand)]
-        action: ApiTestAction,
-    },
     /// Review requirements for testability
     Testability {
         #[command(subcommand)]
@@ -219,20 +213,6 @@ enum TraceabilityAction {
 }
 
 #[derive(Subcommand)]
-enum ApiTestAction {
-    /// Generate API test scenarios and contract tests
-    #[command(after_help = JIRA_ENV_HELP)]
-    Generate {
-        /// Path to the API spec or requirements file
-        #[arg(long)]
-        file: Option<String>,
-        /// Jira issue key (e.g. AIR-123)
-        #[arg(long)]
-        jira_key: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
 enum TestabilityAction {
     /// Review requirements for testability and generate an analysis report
     #[command(after_help = JIRA_ENV_HELP)]
@@ -263,13 +243,6 @@ enum GenAction {
     /// Generate a component with tests and stories from a file
     Component {
         /// Path to a local spec or requirements file
-        #[arg(long)]
-        file: String,
-    },
-    /// Generate an API contract from a requirements file
-    #[command(name = "api-contract")]
-    ApiContract {
-        /// Path to a local requirements or OpenAPI file
         #[arg(long)]
         file: String,
     },
@@ -344,11 +317,6 @@ async fn main() {
                 commands::traceability::generate(file.as_deref(), jira_key.as_deref(), json).await;
             }
         },
-        Commands::ApiTest { action } => match action {
-            ApiTestAction::Generate { file, jira_key } => {
-                commands::api_test::generate(file.as_deref(), jira_key.as_deref(), json).await;
-            }
-        },
         Commands::Testability { action } => match action {
             TestabilityAction::Review { file, jira_key } => {
                 commands::testability::review(file.as_deref(), jira_key.as_deref(), json).await;
@@ -359,7 +327,6 @@ async fn main() {
                 GenAction::Unit { file } => (commands::gen::GenTarget::Unit, file),
                 GenAction::E2e { file } => (commands::gen::GenTarget::E2e, file),
                 GenAction::Component { file } => (commands::gen::GenTarget::Component, file),
-                GenAction::ApiContract { file } => (commands::gen::GenTarget::ApiContract, file),
                 GenAction::Performance { file } => (commands::gen::GenTarget::Performance, file),
                 GenAction::Storybook { file } => (commands::gen::GenTarget::Storybook, file),
             };

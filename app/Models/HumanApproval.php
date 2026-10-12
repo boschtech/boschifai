@@ -14,6 +14,7 @@ class HumanApproval extends Model
         'gate',
         'decision',
         'approved_by',
+        'approved_by_user_id',
         'comment',
         'approved_artifact_hash',
         'decided_at',

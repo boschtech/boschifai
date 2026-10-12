@@ -41,7 +41,7 @@ class RepoCheckoutManagerAuthTest extends TestCase
     {
         Process::fake();
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'Backend',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -56,11 +56,11 @@ class RepoCheckoutManagerAuthTest extends TestCase
     {
         Process::fake();
 
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'acme', 'access_token' => 'gho_faketoken',
         ]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id,
@@ -78,11 +78,11 @@ class RepoCheckoutManagerAuthTest extends TestCase
     {
         Process::fake();
 
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'acme', 'access_token' => 'gho_faketoken',
         ]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id,
@@ -104,11 +104,11 @@ class RepoCheckoutManagerAuthTest extends TestCase
      */
     public function test_a_failed_clone_never_leaks_the_token_in_its_exception_message(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'acme', 'access_token' => 'gho_realtokenvalue',
         ]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             // Deliberately unroutable — forces a real (fast) git failure without hitting the network.
             'git_remote_path' => 'https://127.0.0.1.invalid/acme/backend.git', 'base_branch' => 'main',

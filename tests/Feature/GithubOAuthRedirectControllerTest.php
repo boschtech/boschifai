@@ -35,7 +35,10 @@ class GithubOAuthRedirectControllerTest extends TestCase
         $location = $this->get('/github/authorize')->headers->get('Location');
         parse_str(parse_url($location, PHP_URL_QUERY), $query);
 
-        $this->assertTrue(Cache::has("github:oauth_state:{$query['state']}"));
+        $this->assertSame(
+            ['user_id' => $this->user->id, 'workspace_id' => $this->workspace()->id],
+            Cache::get("github:oauth_state:{$query['state']}"),
+        );
     }
 
     public function test_422s_when_the_oauth_app_is_not_configured(): void

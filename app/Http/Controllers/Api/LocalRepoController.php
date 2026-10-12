@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ConnectLocalRepositoriesRequest;
 use App\Http\Resources\RepoConfigResource;
 use App\Models\RepoConfig;
+use App\Support\CurrentWorkspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Process;
 
@@ -25,7 +26,8 @@ class LocalRepoController extends Controller
 
         abort_unless(is_dir($target), 422, 'Not a directory.');
 
-        $connected = RepoConfig::whereNull('github_connection_id')
+        $connected = RepoConfig::forWorkspace(app(CurrentWorkspace::class)->id())
+            ->whereNull('github_connection_id')
             ->get(['id', 'git_remote_path'])
             ->keyBy('git_remote_path');
 
@@ -65,6 +67,7 @@ class LocalRepoController extends Controller
     {
         $this->ensureEnabled();
         $root = $this->root();
+        $workspaceId = app(CurrentWorkspace::class)->id();
 
         foreach ($request->validated('repositories') as $repo) {
             $absolute = $this->resolveWithinRoot($root, $repo['path']);
@@ -77,15 +80,15 @@ class LocalRepoController extends Controller
 
             $name = basename($absolute);
 
-            $existing = RepoConfig::where('name', $name)->first();
+            $existing = RepoConfig::forWorkspace($workspaceId)->where('name', $name)->first();
             abort_if(
                 $existing && $existing->git_remote_path !== $absolute,
                 422,
-                "A repository named '{$name}' is already connected to Boschifai from elsewhere — rename one before connecting both."
+                "A repository named '{$name}' is already connected to this workspace from elsewhere — rename one before connecting both."
             );
 
             RepoConfig::updateOrCreate(
-                ['name' => $name],
+                ['workspace_id' => $workspaceId, 'name' => $name],
                 [
                     'display_name' => $name,
                     'git_remote_path' => $absolute,
@@ -96,7 +99,7 @@ class LocalRepoController extends Controller
             );
         }
 
-        return RepoConfigResource::collection(RepoConfig::whereNull('github_connection_id')->get());
+        return RepoConfigResource::collection(RepoConfig::forWorkspace($workspaceId)->whereNull('github_connection_id')->get());
     }
 
     private function root(): string

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClaudeInvocation;
+use App\Support\CurrentWorkspace;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -36,7 +37,8 @@ class UsageController extends Controller
         $start = now()->startOfMonth();
         $end = now()->endOfMonth();
 
-        $invocations = ClaudeInvocation::whereBetween('claude_invocations.created_at', [$start, $end])
+        $invocations = ClaudeInvocation::where('claude_invocations.workspace_id', app(CurrentWorkspace::class)->id())
+            ->whereBetween('claude_invocations.created_at', [$start, $end])
             ->join('run_steps', 'run_steps.id', '=', 'claude_invocations.run_step_id')
             ->join('runs', 'runs.id', '=', 'run_steps.run_id')
             ->leftJoin('repo_configs', 'repo_configs.id', '=', 'runs.repo_config_id')
@@ -95,7 +97,8 @@ class UsageController extends Controller
         $start = now()->startOfMonth();
         $end = now()->endOfMonth();
 
-        $totals = ClaudeInvocation::whereBetween('created_at', [$start, $end])
+        $totals = ClaudeInvocation::where('workspace_id', app(CurrentWorkspace::class)->id())
+            ->whereBetween('created_at', [$start, $end])
             ->select([
                 DB::raw('COALESCE(SUM(input_tokens), 0) as input_tokens'),
                 DB::raw('COALESCE(SUM(output_tokens), 0) as output_tokens'),

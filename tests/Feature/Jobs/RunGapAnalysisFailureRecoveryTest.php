@@ -41,7 +41,7 @@ class RunGapAnalysisFailureRecoveryTest extends TestCase
             return Process::result();
         });
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => sys_get_temp_dir(), 'base_branch' => 'main',
         ]);

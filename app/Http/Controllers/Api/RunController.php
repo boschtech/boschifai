@@ -23,6 +23,7 @@ use App\Models\RunStep;
 use App\Services\ClaudeRunner\ClaudeTranscriptParser;
 use App\Services\Sandbox\RunWorkspaceManager;
 use App\Services\TestExecution\LocalTestRunner;
+use App\Support\CurrentWorkspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -39,7 +40,8 @@ class RunController extends Controller
     {
         $showArchived = $request->boolean('archived');
 
-        $runs = Run::with(['repoConfig', 'executionResult', 'ciCheckResult'])
+        $runs = Run::forWorkspace(app(CurrentWorkspace::class)->id())
+            ->with(['repoConfig', 'executionResult', 'ciCheckResult'])
             ->when($showArchived, fn ($query) => $query->whereNotNull('archived_at'))
             ->unless($showArchived, fn ($query) => $query->whereNull('archived_at'))
             ->latest('updated_at')
@@ -50,7 +52,7 @@ class RunController extends Controller
 
     public function store(StoreRunRequest $request)
     {
-        $repo = RepoConfig::findOrFail($request->validated('repo_config_id'));
+        $repo = RepoConfig::forWorkspace(app(CurrentWorkspace::class)->id())->findOrFail($request->validated('repo_config_id'));
 
         // Every Run against a given repo shares that repo's one persistent checkout (see
         // RepoCheckoutManager) rather than an isolated per-run copy — two Runs in flight at
@@ -75,7 +77,8 @@ class RunController extends Controller
             'repo_config_id' => $repo->id,
             ...$validated,
             'state' => RunState::Draft,
-            'created_by' => $request->user()?->email ?? $request->ip(),
+            'created_by' => $request->user()->email,
+            'created_by_user_id' => $request->user()->id,
         ]);
 
         $run->update(['attachment_filenames' => $this->storeAttachments($run, $request)]);

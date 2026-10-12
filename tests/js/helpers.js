@@ -144,3 +144,17 @@ export function mockApi(routes) {
 export function apiError(message) {
     return Object.assign(new Error('Request failed'), { response: { data: { message } } });
 }
+
+/** A signed-in user as /api/me returns it. Admin of "Acme" (can manage), member of "Beta". */
+export function signedInUser({ canManage = true, workspaces } = {}) {
+    return {
+        id: 1,
+        name: 'Ops Admin',
+        email: 'ops@example.com',
+        current_workspace: { id: 10, name: 'Acme', role: canManage ? 'admin' : 'member', can_manage: canManage },
+        workspaces: workspaces ?? [
+            { id: 10, name: 'Acme', role: canManage ? 'admin' : 'member' },
+            { id: 20, name: 'Beta', role: 'member' },
+        ],
+    };
+}

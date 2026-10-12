@@ -44,7 +44,7 @@ class RunStoreRepoValidationTest extends TestCase
     {
         Queue::fake([RunGapAnalysisJob::class]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);
@@ -62,7 +62,7 @@ class RunStoreRepoValidationTest extends TestCase
     {
         Queue::fake([RunGapAnalysisJob::class]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);

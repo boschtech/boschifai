@@ -7,7 +7,8 @@ import CoverageReportsPage from '@/pages/CoverageReportsPage.vue';
 import TokenUsagePage from '@/pages/TokenUsagePage.vue';
 import runs from '@/store/modules/runs';
 import usage from '@/store/modules/usage';
-import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi } from '../helpers';
+import auth from '@/store/modules/auth';
+import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi, signedInUser } from '../helpers';
 
 function run(overrides = {}) {
     return {
@@ -38,10 +39,11 @@ const RUNS = [
 
 let wrapper;
 
-async function mountWith(Page, { api = {}, modules = { runs } } = {}) {
+async function mountWith(Page, { api = {}, modules = { runs, auth }, canManage = true } = {}) {
     mockApi(api);
     const { localVue, router } = makeLocalVueWithRouter({ path: '/x' });
     const store = makeRealStore(localVue, modules);
+    if (modules.auth) store.commit('auth/SET_USER', signedInUser({ canManage }));
     wrapper = mount(Page, { localVue, store, router });
     await flushPromises();
 
@@ -145,6 +147,13 @@ describe('RunsIndexPage', () => {
         expect(archive).toHaveBeenCalled();
         expect(unarchive).toHaveBeenCalled();
         expect(wrapper.vm.archivingId).toBeNull();
+    });
+
+    it('does not offer delete to members (admins and owners only)', async () => {
+        await mountWith(RunsIndexPage, { api: runsApi(), canManage: false });
+
+        expect(wrapper.findAll('button[title="Delete run"]')).toHaveLength(0);
+        expect(wrapper.findAll('button[title="Archive run"]').length).toBeGreaterThan(0);
     });
 
     it('deletes a run only after confirmation', async () => {

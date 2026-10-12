@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\RepoConfigResource;
 use App\Models\RepoConfig;
 use App\Services\Sandbox\RepoCheckoutManager;
+use App\Support\CurrentWorkspace;
 use Illuminate\Http\Request;
 
 class RepoConfigController extends Controller
@@ -19,7 +20,9 @@ class RepoConfigController extends Controller
 
     public function index()
     {
-        return RepoConfigResource::collection(RepoConfig::orderBy('display_name')->get());
+        return RepoConfigResource::collection(
+            RepoConfig::forWorkspace(app(CurrentWorkspace::class)->id())->orderBy('display_name')->get()
+        );
     }
 
     /**

@@ -21,7 +21,7 @@ class PullRequestBodyConfidentialityTest extends TestCase
 
     public function test_pr_body_never_contains_the_raw_requirement_text(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -55,7 +55,7 @@ class PullRequestBodyConfidentialityTest extends TestCase
      */
     public function test_pr_body_makes_no_stack_specific_claim(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'ui-playwright-automation', 'display_name' => 'boschtech/ui-playwright-automation',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'main',
         ]);

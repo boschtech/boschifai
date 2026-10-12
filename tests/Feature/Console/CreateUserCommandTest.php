@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Console;
 
+use App\Enums\WorkspaceRole;
 use App\Models\User;
+use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -18,7 +20,7 @@ class CreateUserCommandTest extends TestCase
         $this->artisan('boschifai:create-user', ['email' => 'Ops@Example.com', '--name' => 'Ops Admin'])
             ->expectsQuestion(self::PROMPT, 'correct-horse-battery-9')
             ->expectsQuestion('Confirm password', 'correct-horse-battery-9')
-            ->expectsOutput('Created ops@example.com. They can now sign in.')
+            ->expectsOutput('Created ops@example.com as owner of the "Default" workspace. They can now sign in.')
             ->assertSuccessful();
 
         $user = User::sole();
@@ -73,5 +75,44 @@ class CreateUserCommandTest extends TestCase
             ->assertFailed();
 
         $this->assertSame(0, User::count());
+    }
+
+    public function test_adds_a_user_to_an_existing_workspace_as_a_member_by_default(): void
+    {
+        $agency = Workspace::create(['name' => 'Agency']);
+
+        $this->artisan('boschifai:create-user', ['email' => 'dev@example.com', '--workspace' => 'Agency'])
+            ->expectsQuestion(self::PROMPT, 'correct-horse-battery-9')
+            ->expectsQuestion('Confirm password', 'correct-horse-battery-9')
+            ->expectsOutput('Created dev@example.com as member of the "Agency" workspace. They can now sign in.')
+            ->assertSuccessful();
+
+        $user = User::sole();
+        $this->assertSame(WorkspaceRole::Member, $user->roleIn($agency));
+        $this->assertSame($agency->id, $user->current_workspace_id);
+        $this->assertSame(1, Workspace::count());
+    }
+
+    public function test_the_role_can_be_chosen_and_must_be_valid(): void
+    {
+        $this->artisan('boschifai:create-user', ['email' => 'lead@example.com', '--workspace' => 'Agency', '--role' => 'Admin'])
+            ->expectsQuestion(self::PROMPT, 'correct-horse-battery-9')
+            ->expectsQuestion('Confirm password', 'correct-horse-battery-9')
+            ->assertSuccessful();
+        $this->assertSame(WorkspaceRole::Admin, User::sole()->roleIn(Workspace::sole()));
+
+        $this->artisan('boschifai:create-user', ['email' => 'x@example.com', '--role' => 'superuser'])
+            ->expectsOutput('The role must be one of: owner, admin, member.')
+            ->assertFailed();
+    }
+
+    public function test_a_failed_validation_creates_no_workspace(): void
+    {
+        $this->artisan('boschifai:create-user', ['email' => 'ops@example.com', '--workspace' => 'Brand New'])
+            ->expectsQuestion(self::PROMPT, 'short1')
+            ->expectsQuestion('Confirm password', 'short1')
+            ->assertFailed();
+
+        $this->assertSame(0, Workspace::count());
     }
 }

@@ -78,7 +78,7 @@ class PushAndOpenPrJobTest extends TestCase
 
     private function makeRun(): Run
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend', 'github_owner' => 'acme',
             'git_remote_path' => $this->repoPath, 'base_branch' => 'prod',
         ]);
@@ -380,7 +380,7 @@ class PushAndOpenPrJobTest extends TestCase
         Http::fake(['api.github.com/*' => Http::response(['number' => 7, 'html_url' => 'https://github.com/acme/backend/pull/7'], 201)]);
         Queue::fake([PollCiStatusJob::class]);
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend', 'github_owner' => 'acme',
             'git_remote_path' => $this->repoPath, 'base_branch' => 'prod',
         ]);

@@ -36,6 +36,16 @@ class ClaudeInvocation extends Model
         ];
     }
 
+    /** Recorded against the run's workspace, so usage can be reported per workspace cheaply. */
+    protected static function booted(): void
+    {
+        static::creating(function (ClaudeInvocation $invocation) {
+            $invocation->workspace_id ??= RunStep::whereKey($invocation->run_step_id)
+                ->join('runs', 'runs.id', '=', 'run_steps.run_id')
+                ->value('runs.workspace_id');
+        });
+    }
+
     public function runStep(): BelongsTo
     {
         return $this->belongsTo(RunStep::class);

@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAuthGuard } from '@/router/authGuard';
 
-function storeWith({ loaded = true, signedIn = false } = {}) {
+function storeWith({ loaded = true, signedIn = false, canManage = false } = {}) {
     const state = { loaded, signedIn };
     return {
         getters: {
             get 'auth/loaded'() { return state.loaded; },
             get 'auth/isAuthenticated'() { return state.signedIn; },
+            get 'auth/canManage'() { return canManage; },
         },
         dispatch: vi.fn(async () => { state.loaded = true; }),
     };
@@ -43,5 +44,12 @@ describe('auth guard', () => {
 
         expect(await navigate(storeWith(), guestPage)).toBeUndefined();
         expect(await navigate(storeWith({ signedIn: true }), guestPage)).toEqual({ name: 'home' });
+    });
+
+    it('keeps members off admin-only pages', async () => {
+        const settings = { meta: { requiresManage: true }, fullPath: '/settings/github' };
+
+        expect(await navigate(storeWith({ signedIn: true, canManage: false }), settings)).toEqual({ name: 'home' });
+        expect(await navigate(storeWith({ signedIn: true, canManage: true }), settings)).toBeUndefined();
     });
 });

@@ -32,7 +32,7 @@ class UsageControllerTest extends TestCase
 
     private function makeStep(string $requirement = "Add login throttling\nMore detail here"): RunStep
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);

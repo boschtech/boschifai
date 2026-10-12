@@ -18,7 +18,7 @@ class RunDeletionTest extends TestCase
 
     public function test_deleting_a_run_removes_it_and_its_related_records(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -47,7 +47,7 @@ class RunDeletionTest extends TestCase
 
     public function test_deleting_a_draft_run_with_no_worktree_still_succeeds(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);

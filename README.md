@@ -198,17 +198,30 @@ npm run build                # or `npm run dev` for a live-reloading Vite dev se
 php artisan boschifai:create-user you@example.com   # asks for a password; then sign in at /login
 ```
 
-## Signing in
+## Signing in and workspaces
 
 Every page and API route requires a signed-in user (Laravel Fortify for login/logout/password
-reset, Sanctum cookie sessions for the Vue app). Self-registration is **off** until workspaces
-exist — a registered user would otherwise see every run and repository — so users are created by
-an administrator:
+reset, Sanctum cookie sessions for the Vue app) who belongs to a **workspace**. A workspace is one
+customer's separate space — its own repositories, GitHub connections, runs and token usage; nothing
+is visible across workspaces (another workspace's run, repository or connection is simply a 404).
+Users can belong to several workspaces and switch between them from the header.
+
+Roles per workspace:
+
+| | Member | Admin | Owner |
+|---|---|---|---|
+| Submit, review, approve, retry, cancel, archive runs | ✓ | ✓ | ✓ |
+| Connect/remove repositories and GitHub accounts, delete runs | | ✓ | ✓ |
+
+Users are created by an administrator (self-registration and invitations come next):
 
 ```bash
-php artisan boschifai:create-user someone@example.com --name="Someone"
-# Docker: docker compose exec app php artisan boschifai:create-user someone@example.com
+php artisan boschifai:create-user someone@example.com --name="Someone" --workspace="Acme Rentals" --role=admin
+# Docker: docker compose exec app php artisan boschifai:create-user someone@example.com --workspace="Acme Rentals"
 ```
+
+`--workspace` (default `Default`) is created if it doesn't exist; `--role` defaults to **owner** of
+a new workspace and **member** of an existing one.
 
 The password is typed at a hidden prompt (at least 12 characters, letters and numbers); it is never
 taken as an argument or printed. Users can change it under **Account**, or reset it from
@@ -438,6 +451,27 @@ that holds the key). `BOSCHIFAI_CLAUDE_RESTRICTED_MODE=true` (Claude Code's `--r
 file tools confined to the checkout, no Bash) narrows it, but changes what every step can do, so
 it should be verified with a full pipeline run before being switched on.
 
+## Upgrading an existing install to workspaces
+
+The workspace migrations move everything that already exists — repositories, GitHub connections,
+runs, token usage and users — into one **Default** workspace, and make every existing user its
+owner (before workspaces, everyone could already see everything). Repository checkouts move to
+per-workspace folders.
+
+Both `app` and `worker` run `migrate` when they start; for this upgrade, migrate **once** with
+nothing else running, so the two can't race through the schema changes:
+
+```bash
+docker compose stop worker                     # no runs in progress first
+# back up the database (e.g. mysqldump of the db service) before migrating
+docker compose run --rm app php artisan migrate --force
+docker compose run --rm app php artisan boschifai:migrate-checkouts   # optional: keeps existing clones
+docker compose up -d
+```
+
+Skipping `boschifai:migrate-checkouts` is safe — a repository without a checkout in the new place is
+cloned again on its next run.
+
 ## What's not wired up yet
 
 These are real TODOs, not silently-stubbed behavior — the code paths that need them fail with
@@ -455,9 +489,8 @@ a clear error rather than pretending to succeed:
   the Claude invocation itself hasn't had the same treatment). Production should run it in a
   more locked-down container with network egress restricted to `api.anthropic.com` and no
   GitHub/AWS/DB credentials present — today's Docker setup does not attempt this isolation.
-- **No workspaces yet** — sign-in is required (see [Signing in](#signing-in)), but every signed-in
-  user sees every run and repository. Separate workspaces per customer come next; until then,
-  only create accounts for people who should see everything, and keep self-registration off.
+- **No invitations or self-registration yet** — users are added with `boschifai:create-user` (see
+  [Signing in and workspaces](#signing-in-and-workspaces)); inviting people from the app comes next.
 - **Single global concurrency limit, not a real queue/lock** — only one Run per repo may be in
   flight (enforced in `RunController::store()`), a deliberate simplification the shared-checkout
   design accepts rather than solves for; fine for today's usage, would need real

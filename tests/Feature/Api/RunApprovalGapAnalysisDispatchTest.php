@@ -27,7 +27,7 @@ class RunApprovalGapAnalysisDispatchTest extends TestCase
 
     private function makeRun(RunType $runType): Run
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);

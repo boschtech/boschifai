@@ -38,7 +38,7 @@ class RepoConfigBrowseFilesTest extends TestCase
 
     private function makeRepo(): RepoConfig
     {
-        return RepoConfig::create([
+        return RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => $this->checkoutPath, 'base_branch' => 'main',
         ]);
@@ -88,10 +88,10 @@ class RepoConfigBrowseFilesTest extends TestCase
         // A GitHub-connected repo's checkout (RepoCheckoutManager::path() resolves it under
         // config('boschifai.var_path')) only exists on disk after RunWorkspaceManager::prepare()
         // has actually run once — a fresh connection with no run yet has nothing there.
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'acme', 'access_token' => 'gho_faketoken',
         ]);
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'never-run-repo', 'display_name' => 'acme/never-run-repo',
             'git_remote_path' => 'https://github.com/acme/never-run-repo.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id,

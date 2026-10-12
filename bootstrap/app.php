@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\RequireWorkspace;
+use App\Http\Middleware\RequireWorkspaceManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         // Full-page navigations by a guest (e.g. /github/authorize) land on the SPA's login page.
         $middleware->redirectGuestsTo('/login');
+        $middleware->alias([
+            'workspace' => RequireWorkspace::class,
+            'workspace.manage' => RequireWorkspaceManager::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

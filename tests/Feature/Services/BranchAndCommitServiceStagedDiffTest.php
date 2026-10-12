@@ -47,7 +47,7 @@ class BranchAndCommitServiceStagedDiffTest extends TestCase
 
     public function test_throws_if_an_unrelated_file_is_already_staged_before_the_generated_file_is_added(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'Backend',
             'git_remote_path' => $this->repoPath, 'base_branch' => 'prod',
         ]);
@@ -75,7 +75,7 @@ class BranchAndCommitServiceStagedDiffTest extends TestCase
 
     public function test_commits_successfully_when_only_the_expected_file_is_staged(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'Backend',
             'git_remote_path' => $this->repoPath, 'base_branch' => 'prod',
         ]);

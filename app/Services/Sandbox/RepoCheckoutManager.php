@@ -25,6 +25,16 @@ class RepoCheckoutManager
 {
     public function __construct(private GithubOAuthService $githubAuth) {}
 
+    /**
+     * Per workspace and by id (not by repo name): repo names are only unique within a workspace,
+     * and an id-based folder survives a repo being renamed. `boschifai:migrate-checkouts` moves
+     * checkouts from the old `repos/{name}` layout.
+     */
+    public static function checkoutPathFor(int $workspaceId, int $repoConfigId): string
+    {
+        return config('boschifai.var_path')."/repos/{$workspaceId}/{$repoConfigId}";
+    }
+
     public function path(RepoConfig $repo): string
     {
         // A local repo already IS its own checkout — never a second copy of it.
@@ -32,7 +42,7 @@ class RepoCheckoutManager
             return $repo->git_remote_path;
         }
 
-        return config('boschifai.var_path').'/repos/'.$repo->name;
+        return self::checkoutPathFor($repo->workspace_id, $repo->id);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\CurrentWorkspace;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -12,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One per request (and per queued job), never shared between them.
+        $this->app->scoped(CurrentWorkspace::class);
     }
 
     /**

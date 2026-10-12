@@ -80,6 +80,7 @@
                             </button>
 
                             <button
+                                v-if="canManage"
                                 type="button"
                                 :disabled="deletingId === run.id"
                                 class="text-fg-muted transition hover:text-danger disabled:opacity-50"
@@ -142,6 +143,8 @@ export default {
 
     computed: {
         ...mapGetters('runs', ['list', 'loading', 'error']),
+        // Deleting runs is for workspace admins and owners (the API enforces it too).
+        ...mapGetters('auth', ['canManage']),
 
         deleteConfirmMessage() {
             if (!this.pendingDelete) return '';

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\RunState;
 use App\Enums\RunType;
+use App\Models\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Run extends Model
 {
-    use HasUuids;
+    use BelongsToWorkspace, HasUuids;
 
     protected $fillable = [
         'repo_config_id',
@@ -37,6 +38,7 @@ class Run extends Model
         'error_message',
         'rejection_comment',
         'created_by',
+        'created_by_user_id',
         'cancel_requested_at',
         'archived_at',
     ];
@@ -54,6 +56,19 @@ class Run extends Model
             'cancel_requested_at' => 'datetime',
             'archived_at' => 'datetime',
         ];
+    }
+
+    /** A run always belongs to its repository's workspace — set here, never by callers. */
+    protected static function booted(): void
+    {
+        static::creating(function (Run $run) {
+            $run->workspace_id = RepoConfig::whereKey($run->repo_config_id)->value('workspace_id');
+        });
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     public function repoConfig(): BelongsTo

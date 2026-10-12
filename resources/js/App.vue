@@ -9,6 +9,7 @@
                     Boschif<span class="text-[#D4AF37]">AI</span>
                 </router-link>
                 <div class="flex items-center gap-3">
+                    <workspace-switcher />
                     <token-usage-badge />
                     <theme-toggle />
                     <router-link
@@ -18,6 +19,7 @@
                         Home
                     </router-link>
                     <router-link
+                        v-if="canManage"
                         :to="{ name: 'settings.github' }"
                         class="rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt"
                     >
@@ -58,14 +60,15 @@ import { mapGetters } from 'vuex';
 import ThemeToggle from './components/ThemeToggle.vue';
 import SidebarNav from './components/SidebarNav.vue';
 import TokenUsageBadge from './components/TokenUsageBadge.vue';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher.vue';
 
 export default {
     name: 'App',
 
-    components: { ThemeToggle, SidebarNav, TokenUsageBadge },
+    components: { ThemeToggle, SidebarNav, TokenUsageBadge, WorkspaceSwitcher },
 
     computed: {
-        ...mapGetters('auth', ['user']),
+        ...mapGetters('auth', ['user', 'canManage']),
     },
 
     watch: {

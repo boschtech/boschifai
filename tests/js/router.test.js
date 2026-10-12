@@ -56,6 +56,10 @@ describe('router', () => {
         expect(kb.props.default).toMatchObject({ runType: 'build_knowledge_base', title: 'Build Knowledge Base' });
     });
 
+    it('marks the GitHub settings page as admin-only', () => {
+        expect(route({ name: 'settings.github' }).meta.requiresManage).toBe(true);
+    });
+
     it('uses clean history URLs', () => {
         expect(router.mode).toBe('history');
     });

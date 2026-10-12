@@ -25,7 +25,7 @@ class RunStoreStandaloneActionTest extends TestCase
 
     private function makeRepo(): RepoConfig
     {
-        return RepoConfig::create([
+        return RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);

@@ -12,6 +12,10 @@ const getters = {
     user: (state) => state.user,
     loaded: (state) => state.loaded,
     isAuthenticated: (state) => state.user !== null,
+    currentWorkspace: (state) => state.user?.current_workspace ?? null,
+    workspaces: (state) => state.user?.workspaces ?? [],
+    // Admins and owners manage the workspace's repositories and GitHub connections.
+    canManage: (state) => state.user?.current_workspace?.can_manage === true,
 };
 
 const mutations = {
@@ -59,6 +63,11 @@ const actions = {
     async resetPassword(_context, payload) {
         await csrf();
         await window.axios.post('/reset-password', payload);
+    },
+
+    async switchWorkspace({ commit }, workspaceId) {
+        const { data } = await window.axios.post(`/api/workspaces/${workspaceId}/switch`);
+        commit('SET_USER', data.data);
     },
 
     async changePassword(_context, payload) {

@@ -1,5 +1,8 @@
 <template>
-    <div class="min-h-screen bg-bg">
+    <!-- Guest pages (login, forgot/reset password) have their own full-page layout. -->
+    <router-view v-if="$route.meta.guest" />
+
+    <div v-else class="min-h-screen bg-bg">
         <header ref="header" class="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
             <div class="mx-auto max-w-[1440px] px-6 py-4 flex items-center justify-between">
                 <router-link :to="{ name: 'home' }" class="text-2xl font-extrabold tracking-tight text-fg-strong">
@@ -20,6 +23,22 @@
                     >
                         Connect Repo
                     </router-link>
+                    <template v-if="user">
+                        <router-link
+                            :to="{ name: 'account' }"
+                            title="Account"
+                            class="rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt"
+                        >
+                            {{ user.name }}
+                        </router-link>
+                        <button
+                            type="button"
+                            class="rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt hover:text-danger"
+                            @click="signOut"
+                        >
+                            Sign out
+                        </button>
+                    </template>
                 </div>
             </div>
         </header>
@@ -35,6 +54,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 import ThemeToggle from './components/ThemeToggle.vue';
 import SidebarNav from './components/SidebarNav.vue';
 import TokenUsageBadge from './components/TokenUsageBadge.vue';
@@ -43,6 +63,17 @@ export default {
     name: 'App',
 
     components: { ThemeToggle, SidebarNav, TokenUsageBadge },
+
+    computed: {
+        ...mapGetters('auth', ['user']),
+    },
+
+    watch: {
+        // Coming from a guest page (e.g. just signed in): the header only now exists to measure.
+        '$route.meta.guest'(isGuest) {
+            if (!isGuest) this.$nextTick(this.updateHeaderHeight);
+        },
+    },
 
     mounted() {
         // SidebarNav's sticky offset needs to match this header's REAL rendered height, not a
@@ -60,6 +91,11 @@ export default {
     },
 
     methods: {
+        async signOut() {
+            await this.$store.dispatch('auth/logout');
+            this.$router.push({ name: 'login' }).catch(() => {});
+        },
+
         updateHeaderHeight() {
             const height = this.$refs.header?.offsetHeight;
             if (height) {

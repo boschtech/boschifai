@@ -10,6 +10,7 @@ use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -22,7 +23,7 @@ use Tests\TestCase;
  */
 class RunGapAnalysisFailureRecoveryTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     public function test_a_workspace_prepare_failure_marks_the_run_and_step_failed_and_retry_does_not_404(): void
     {

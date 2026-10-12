@@ -9,11 +9,12 @@ use App\Models\Run;
 use App\Models\RunArtifact;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class RunDeletionTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     public function test_deleting_a_run_removes_it_and_its_related_records(): void
     {

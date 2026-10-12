@@ -10,6 +10,7 @@ use App\Models\Run;
 use App\Models\RunStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -21,7 +22,7 @@ use Tests\TestCase;
  */
 class RunRetryPushStepTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     public function test_retrying_a_failed_push_step_dispatches_push_and_open_pr_job(): void
     {

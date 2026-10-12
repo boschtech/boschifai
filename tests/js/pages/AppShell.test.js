@@ -8,6 +8,7 @@ import HomePage from '@/pages/HomePage.vue';
 import ToolsRequirementPage from '@/pages/ToolsRequirementPage.vue';
 import StandaloneActionCreatePage from '@/pages/StandaloneActionCreatePage.vue';
 import usage from '@/store/modules/usage';
+import auth from '@/store/modules/auth';
 import runs from '@/store/modules/runs';
 import repoConfigs from '@/store/modules/repoConfigs';
 import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi } from '../helpers';
@@ -102,7 +103,7 @@ describe('App', () => {
         await mountWith(App, {
             path: '/',
             api: { 'GET /api/usage/tokens-this-month': USAGE },
-            modules: { usage },
+            modules: { usage, auth },
             stubs: { 'router-view': { template: '<div class="page">page content</div>' } },
         });
 
@@ -116,7 +117,7 @@ describe('App', () => {
     it('publishes the header height for the sticky sidebar, and stops listening when destroyed', async () => {
         vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(88);
         const removeListener = vi.spyOn(window, 'removeEventListener');
-        await mountWith(App, { api: { 'GET /api/usage/tokens-this-month': USAGE }, modules: { usage }, stubs: { 'router-view': true } });
+        await mountWith(App, { api: { 'GET /api/usage/tokens-this-month': USAGE }, modules: { usage, auth }, stubs: { 'router-view': true } });
 
         expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('88px');
 
@@ -125,6 +126,54 @@ describe('App', () => {
         wrapper = undefined;
 
         expect(removeListener).toHaveBeenCalledWith('resize', expect.any(Function));
+    });
+});
+
+describe('App — sign-in state', () => {
+    const SIGNED_IN = { 'GET /api/usage/tokens-this-month': USAGE };
+
+    it('shows the signed-in user with links to their account and to sign out', async () => {
+        const { store } = await mountWith(App, { api: SIGNED_IN, modules: { usage, auth }, stubs: { 'router-view': true } });
+        store.commit('auth/SET_USER', { id: 1, name: 'Ops Admin', email: 'ops@example.com' });
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.find('a[href="/account"]').text()).toBe('Ops Admin');
+        expect(wrapper.findAll('button').filter((b) => b.text() === 'Sign out')).toHaveLength(1);
+    });
+
+    it('signs out and goes to the login page', async () => {
+        const loggedOut = vi.fn(() => ({}));
+        const { store, router } = await mountWith(App, { api: { ...SIGNED_IN, 'POST /logout': loggedOut }, modules: { usage, auth }, stubs: { 'router-view': true } });
+        store.commit('auth/SET_USER', { id: 1, name: 'Ops Admin', email: 'ops@example.com' });
+        await wrapper.vm.$nextTick();
+
+        await wrapper.findAll('button').filter((b) => b.text() === 'Sign out').at(0).trigger('click');
+        await flushPromises();
+
+        expect(loggedOut).toHaveBeenCalled();
+        expect(store.getters['auth/user']).toBeNull();
+        expect(router.currentRoute.name).toBe('login');
+    });
+
+    it('renders guest pages on their own, without the header or sidebar', async () => {
+        await mountWith(App, { path: '/login', modules: { usage, auth }, stubs: { 'router-view': { template: '<div class="page">login form</div>' } } });
+
+        expect(wrapper.find('.page').text()).toBe('login form');
+        expect(wrapper.find('header').exists()).toBe(false);
+        expect(wrapper.find('nav').exists()).toBe(false);
+        // The token badge (which calls the API) isn't mounted for guests.
+        expect(window.axios.get).not.toHaveBeenCalled();
+    });
+
+    it('measures the header once the user moves from a guest page into the app', async () => {
+        vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(91);
+        const { router } = await mountWith(App, { path: '/login', api: SIGNED_IN, modules: { usage, auth }, stubs: { 'router-view': true } });
+        expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('');
+
+        await router.push('/runs');
+        await flushPromises();
+
+        expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('91px');
     });
 });
 

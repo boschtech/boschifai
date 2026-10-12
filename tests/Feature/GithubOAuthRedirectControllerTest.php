@@ -4,11 +4,12 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class GithubOAuthRedirectControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     protected function setUp(): void
     {

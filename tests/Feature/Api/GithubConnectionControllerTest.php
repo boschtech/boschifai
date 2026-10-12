@@ -6,11 +6,12 @@ use App\Models\GithubConnection;
 use App\Models\RepoConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class GithubConnectionControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     protected function setUp(): void
     {

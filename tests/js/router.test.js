@@ -63,7 +63,7 @@ describe('router', () => {
 
 describe('store', () => {
     it('registers every namespaced module', () => {
-        expect(Object.keys(store._modules.root._children).sort()).toEqual(['github', 'localRepos', 'repoConfigs', 'runs', 'usage']);
+        expect(Object.keys(store._modules.root._children).sort()).toEqual(['auth', 'github', 'localRepos', 'repoConfigs', 'runs', 'usage']);
         expect(store.getters['runs/list']).toEqual([]);
         expect(store.getters['usage/tokensThisMonth']).toBeNull();
     });

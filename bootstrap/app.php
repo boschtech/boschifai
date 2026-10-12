@@ -12,7 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // The Vue SPA is served from this same app, so the API authenticates with Sanctum's
+        // cookie-based session (CSRF-protected) rather than API tokens.
+        $middleware->statefulApi();
+        // Full-page navigations by a guest (e.g. /github/authorize) land on the SPA's login page.
+        $middleware->redirectGuestsTo('/login');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

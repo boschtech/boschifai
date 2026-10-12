@@ -5,11 +5,12 @@ namespace Tests\Feature\Api;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class RepoConfigControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     public function test_index_lists_repo_configs_with_the_fields_the_frontend_needs(): void
     {

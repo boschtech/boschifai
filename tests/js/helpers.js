@@ -109,6 +109,10 @@ export function makeLocalVueWithRouter({ path = '/', query = {}, routes = [] } =
             { path: '/reporting/coverage-reports', name: 'reporting.coverage' },
             { path: '/reporting/test-history', name: 'reporting.test-history' },
             { path: '/reporting/token-usage', name: 'reporting.token-usage' },
+            { path: '/login', name: 'login', meta: { guest: true } },
+            { path: '/forgot-password', name: 'password.forgot', meta: { guest: true } },
+            { path: '/reset-password/:token', name: 'password.reset', meta: { guest: true } },
+            { path: '/account', name: 'account' },
             ...routes,
         ],
     });

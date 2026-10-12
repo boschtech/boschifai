@@ -11,11 +11,12 @@ use App\Models\Run;
 use App\Models\RunStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class UsageControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     protected function setUp(): void
     {

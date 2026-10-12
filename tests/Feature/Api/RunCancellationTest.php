@@ -6,6 +6,7 @@ use App\Enums\RunState;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RunCancellationTest extends TestCase
@@ -27,7 +28,7 @@ class RunCancellationTest extends TestCase
         ]);
     }
 
-    /** @dataProvider cancellableStatesProvider */
+    #[DataProvider('cancellableStatesProvider')]
     public function test_cancel_stamps_cancel_requested_at_for_cancellable_states(RunState $state): void
     {
         $run = $this->makeRun($state);
@@ -54,7 +55,7 @@ class RunCancellationTest extends TestCase
         ];
     }
 
-    /** @dataProvider noncancellableStatesProvider */
+    #[DataProvider('noncancellableStatesProvider')]
     public function test_cancel_is_rejected_for_states_with_no_in_flight_work(RunState $state): void
     {
         $run = $this->makeRun($state);

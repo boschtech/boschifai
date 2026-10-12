@@ -6,6 +6,7 @@ use App\Enums\RunState;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RunArchiveTest extends TestCase
@@ -30,7 +31,7 @@ class RunArchiveTest extends TestCase
         ]);
     }
 
-    /** @dataProvider cancellableStatesProvider */
+    #[DataProvider('cancellableStatesProvider')]
     public function test_archiving_a_cancellable_state_also_requests_cancellation(RunState $state): void
     {
         $run = $this->makeRun($this->makeRepo(), $state);
@@ -56,7 +57,7 @@ class RunArchiveTest extends TestCase
         ];
     }
 
-    /** @dataProvider nonCancellableStatesProvider */
+    #[DataProvider('nonCancellableStatesProvider')]
     public function test_archiving_a_non_cancellable_state_does_not_touch_cancel_requested_at(RunState $state): void
     {
         $run = $this->makeRun($this->makeRepo(), $state);

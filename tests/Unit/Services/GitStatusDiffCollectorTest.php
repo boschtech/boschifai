@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use App\Enums\ArtifactKind;
 use App\Services\ArtifactCollection\GitStatusDiffCollector;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class GitStatusDiffCollectorTest extends TestCase
@@ -27,7 +28,7 @@ class GitStatusDiffCollectorTest extends TestCase
         );
     }
 
-    /** @dataProvider classificationProvider */
+    #[DataProvider('classificationProvider')]
     public function test_classify_matches_the_binding_naming_convention(string $path, ?ArtifactKind $expected): void
     {
         $this->assertSame($expected, $this->collector->classify($path));

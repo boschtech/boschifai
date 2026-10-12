@@ -7,11 +7,12 @@ use App\Models\RepoConfig;
 use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 class RunArchiveTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private function makeRepo(): RepoConfig
     {

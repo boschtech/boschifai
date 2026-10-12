@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class RunStoreAttachmentsTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private function makeRepo(): RepoConfig
     {

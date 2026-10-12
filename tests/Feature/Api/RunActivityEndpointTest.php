@@ -9,6 +9,7 @@ use App\Models\Run;
 use App\Services\TestExecution\LocalTestRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class RunActivityEndpointTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private function makeRun(RunState $state): Run
     {

@@ -13,6 +13,7 @@ use App\Models\RunArtifact;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -22,7 +23,7 @@ use Tests\TestCase;
  */
 class RunApprovalGapAnalysisChangesRequestedTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private function makeRun(RunType $runType = RunType::Requirement, array $attachments = []): Run
     {

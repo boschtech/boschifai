@@ -6,6 +6,7 @@ use App\Models\GithubConnection;
 use App\Models\RepoConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -14,7 +15,7 @@ use Tests\TestCase;
  */
 class RepoConfigBrowseFilesTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private string $checkoutPath;
 

@@ -10,12 +10,13 @@ use App\Models\Run;
 use App\Models\RunArtifact;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /** Gate 2 (pre-push) approval endpoint: POST /api/runs/{run}/approvals/push. */
 class RunApprovalPushTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     private function makeRun(RunState $state = RunState::LocalExecutionComplete): Run
     {

@@ -11,10 +11,24 @@ import ConfidenceReportsPage from '../pages/ConfidenceReportsPage.vue';
 import CoverageReportsPage from '../pages/CoverageReportsPage.vue';
 import TestHistoryPage from '../pages/TestHistoryPage.vue';
 import TokenUsagePage from '../pages/TokenUsagePage.vue';
+import LoginPage from '../pages/auth/LoginPage.vue';
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue';
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue';
+import AccountPage from '../pages/AccountPage.vue';
+import store from '../store';
+import { createAuthGuard } from './authGuard';
 
 Vue.use(VueRouter);
 
 const routes = [
+    // Guest pages — shown without the app header/sidebar (see App.vue). Everything else requires
+    // a signed-in user (see authGuard.js).
+    { path: '/login', name: 'login', component: LoginPage, meta: { guest: true } },
+    { path: '/forgot-password', name: 'password.forgot', component: ForgotPasswordPage, meta: { guest: true } },
+    // Linked from the password-reset email (route name `password.reset` in routes/web.php).
+    { path: '/reset-password/:token', name: 'password.reset', component: ResetPasswordPage, props: true, meta: { guest: true } },
+    { path: '/account', name: 'account', component: AccountPage },
+
     // '/' is a standalone summary/landing page — deliberately NOT the runs list. The header
     // logo and "Home" button both point here; the sidebar's "All Runs" link points at
     // 'runs.index' below instead, which now lives at its own path.
@@ -65,7 +79,11 @@ const routes = [
     { path: '/reporting/token-usage', name: 'reporting.token-usage', component: TokenUsagePage },
 ];
 
-export default new VueRouter({
+const router = new VueRouter({
     mode: 'history',
     routes,
 });
+
+router.beforeEach(createAuthGuard(store));
+
+export default router;

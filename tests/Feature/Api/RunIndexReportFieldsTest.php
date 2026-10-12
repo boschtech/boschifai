@@ -8,6 +8,7 @@ use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\TestExecutionResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SignsInUser;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class RunIndexReportFieldsTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SignsInUser;
 
     public function test_the_runs_list_exposes_confidence_coverage_and_execution_fields(): void
     {

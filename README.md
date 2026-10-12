@@ -194,7 +194,31 @@ php artisan key:generate
 
 php artisan migrate          # creates the sqlite DB — no seeding needed, repos come from Connect Repo
 npm run build                # or `npm run dev` for a live-reloading Vite dev server
+
+php artisan boschifai:create-user you@example.com   # asks for a password; then sign in at /login
 ```
+
+## Signing in
+
+Every page and API route requires a signed-in user (Laravel Fortify for login/logout/password
+reset, Sanctum cookie sessions for the Vue app). Self-registration is **off** until workspaces
+exist — a registered user would otherwise see every run and repository — so users are created by
+an administrator:
+
+```bash
+php artisan boschifai:create-user someone@example.com --name="Someone"
+# Docker: docker compose exec app php artisan boschifai:create-user someone@example.com
+```
+
+The password is typed at a hidden prompt (at least 12 characters, letters and numbers); it is never
+taken as an argument or printed. Users can change it under **Account**, or reset it from
+**Forgot your password?** on the login page — the reset email goes through the `MAIL_*` settings
+(`MAIL_MAILER=log` writes it to `storage/logs/laravel.log` locally; configure SES for real use).
+The forgot-password form replies the same way whether or not an address has an account, so it
+can't be used to discover who has one.
+
+If the app is served from a host or port other than `APP_URL`, add it to `SANCTUM_STATEFUL_DOMAINS`,
+otherwise sign-in succeeds but API calls return 401.
 
 ## Running the app
 
@@ -431,10 +455,9 @@ a clear error rather than pretending to succeed:
   the Claude invocation itself hasn't had the same treatment). Production should run it in a
   more locked-down container with network egress restricted to `api.anthropic.com` and no
   GitHub/AWS/DB credentials present — today's Docker setup does not attempt this isolation.
-- **No authentication on this app at all** — no login, nothing gating `/api/*`. The local-repo
-  browse endpoint is deliberately root-confined for this reason (see
-  [Connecting a repository](#connecting-a-repository)), but that's a mitigation for one endpoint,
-  not a substitute for real auth on the whole app.
+- **No workspaces yet** — sign-in is required (see [Signing in](#signing-in)), but every signed-in
+  user sees every run and repository. Separate workspaces per customer come next; until then,
+  only create accounts for people who should see everything, and keep self-registration off.
 - **Single global concurrency limit, not a real queue/lock** — only one Run per repo may be in
   flight (enforced in `RunController::store()`), a deliberate simplification the shared-checkout
   design accepts rather than solves for; fine for today's usage, would need real

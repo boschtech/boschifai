@@ -88,7 +88,6 @@ fn every_jira_backed_command_uses_the_issue() {
         (vec!["plan", "generate"], "test_plan_air-42.md"),
         (vec!["data", "generate"], "test_data_air-42.md"),
         (vec!["traceability", "generate"], "traceability_air-42.md"),
-        (vec!["api-test", "generate"], "api_tests_air-42.md"),
         (
             vec!["testability", "review"],
             "testability_review_air-42.md",
@@ -251,7 +250,6 @@ fn every_jira_backed_command_reports_missing_configuration() {
         vec!["plan", "generate"],
         vec!["data", "generate"],
         vec!["traceability", "generate"],
-        vec!["api-test", "generate"],
         vec!["testability", "review"],
         vec!["test-case", "generate"],
         vec!["strategy", "create"],

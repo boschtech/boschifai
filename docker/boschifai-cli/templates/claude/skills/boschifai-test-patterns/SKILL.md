@@ -57,7 +57,6 @@ Every test case MUST include:
 | Test Strategy | `test_strategy_<NAME>.md` |
 | Test Plan | `test_plan_<NAME>.md` |
 | Test Cases | `test_cases_<JIRA_KEY_or_NAME>.md` |
-| API Tests | `api_tests_<NAME>.md` |
 | Test Data | `test_data_<NAME>.md` |
 | Traceability Matrix | `traceability_matrix_<NAME>.md` |
 | Defect Report | `defect_report_<NAME>.md` |

@@ -1,11 +1,11 @@
 ---
-description: "Generate end-to-end tests for user journeys — auto-detects UI, REST API, or event-driven API"
+description: "Generate end-to-end tests for user journeys — auto-detects browser UI or Flutter mobile"
 mode: agent
 ---
 
 # Generate E2E Tests
 
-Generate end-to-end tests for the described journey or current file. Automatically detects whether the target is a UI journey, a REST API journey, or an event-driven API journey.
+Generate end-to-end tests for the described journey or current file. Automatically detects whether the target is a browser UI journey or a Flutter mobile app journey.
 
 ## Input Sources
 
@@ -30,25 +30,11 @@ Generate end-to-end tests for the described journey or current file. Automatical
    - Existing specs in `e2e/` or `tests/` importing from `@playwright/test`
    - `pages/` directory containing `*.page.ts` Page Object files
 
-   **Event-Driven API E2E (Kafka / Solace):**
-   - `@Testcontainers` with Kafka container + additional service containers (no browser tooling)
-   - `docker-compose*.yml` orchestrating a message broker alongside multiple app services
-   - Existing test files publishing to a real Kafka/Solace broker and asserting cross-service effects
-   - `sol-jcsmp` or `solace` in project dependencies with multi-service test setup
+   **Mobile E2E (Flutter + Patrol):**
+   - `pubspec.yaml` contains `patrol` (and `integration_test`)
+   - `integration_test/` directory with `patrolTest` specs or `integration_test/helpers/`
 
-   **Next.js / Koa BFF E2E:**
-   - `package.json` contains `koa`, `express`, or `next` AND `supertest`
-   - Test files in `test/e2e/` or `test/sit/` using a BDD steps structure (`given.js`, `when.js`, `then.js`) with **no** `nock` imports
-   - `nock` appears only in `test/ct/` (component tests) — absent from E2E step files
-   - CouchDB/Couchbase session store seeding in Given steps (real document writes, not mocked)
-
-   **REST API E2E:**
-   - `@SpringBootTest` + `TestRestTemplate`/`WebTestClient`/`RestAssured` + Testcontainers (DB / external services)
-   - `supertest` or `axios` tests against a fully-running Java server backed by Testcontainers
-   - No browser tooling, no message broker in test setup
-   - Multi-step HTTP flows testing state transitions across the full stack
-
-   **Priority:** UI > Event-Driven API > Next.js BFF > REST API. Check for browser tooling first. Within API: broker presence → event; koa/express + supertest + no nock in E2E files → Next.js BFF; everything else → REST.
+   **Priority:** UI > Mobile. Check for browser tooling first.
 
    **If detection is ambiguous or fails — stop and ask the user:**
 
@@ -59,14 +45,12 @@ Generate end-to-end tests for the described journey or current file. Automatical
    >
    > **Existing skills:**
    > 1. `boschifai-gen-e2e-ui` — Browser-driven UI journeys (Playwright / Cypress, Page Object Model)
-   > 2. `boschifai-gen-e2e-api-rest` — REST API journeys across real services (Java Spring Boot + Testcontainers, or Node + supertest)
-   > 3. `boschifai-gen-e2e-api-event` — Event-driven API journeys through a real broker (Kafka / Solace + multi-service Testcontainers)
-   > 4. `boschifai-gen-e2e-api-nextjs` — Next.js / Koa BFF journeys with real CouchDB session store and real upstream services (supertest, no nock)
+   > 2. `boschifai-gen-e2e-mobile` — Flutter mobile app journeys (Patrol, native OS-level actions)
    >
    > **Or describe your tech stack** (e.g. "Python FastAPI with pytest and Docker Compose", "Go service with httptest and Testcontainers") and I will generate E2E tests using the base `boschifai-gen-e2e` rules adapted to your stack.
 
    - If the user picks a numbered option → load the matching skill and continue from step 2.
-   - If the user describes a new tech stack → note the stack, apply the base `boschifai-gen-e2e` quality rules (no mocks, real infrastructure, Awaitility-equivalent polling, independent tests), adapt naming and framework conventions to what the user described, and continue from step 2.
+   - If the user describes a new tech stack → note the stack, apply the base `boschifai-gen-e2e` quality rules (no mocks, real infrastructure, auto-waiting instead of sleeps, independent tests), adapt naming and framework conventions to what the user described, and continue from step 2.
    - Do NOT guess or proceed silently when detection fails.
 
 2. **Read the journey or requirements** — identify the steps, services involved, expected outcomes, and failure paths.
@@ -74,33 +58,31 @@ Generate end-to-end tests for the described journey or current file. Automatical
 3. **Read the matching tech-specific skill** to get the exact:
    - File naming and location convention
    - Test class/spec structure template
-   - Infrastructure setup (Testcontainers, Docker Compose, Playwright config)
-   - Assertion style (Awaitility vs Playwright auto-wait vs supertest expect)
+   - Setup (Playwright config, Patrol/`integration_test` setup)
+   - Assertion style (Playwright auto-wait vs Patrol finders)
    - Setup/teardown patterns
    - Required test categories and generation checklist
 
 4. **Generate tests covering all categories from the tech skill's checklist:**
    - Happy path (full journey succeeds)
    - Invalid input / validation failure
-   - Error recovery (downstream failure, DLQ routing)
-   - Idempotency (duplicate operation or event)
+   - Error recovery (downstream failure, retry)
+   - Idempotency (repeating the journey)
    - State persistence / consistency
    - Responsive viewports (UI only)
-   - Cross-service propagation (event-driven only)
+   - Native OS interactions (mobile only)
 
 5. **Output the test file** using the exact naming from the detected skill:
    - UI E2E: `tests/e2e/journeys/<journey-name>.spec.ts` + `tests/e2e/pages/<PageName>.page.ts`
-   - REST API E2E: `src/test/java/<package>/e2e/<Journey>E2ETest.java` or `test/e2e/<journey>.e2e.spec.js`
-   - Event-Driven API E2E: `src/test/java/<package>/e2e/<Journey>EventE2ETest.java`
-   - Next.js BFF E2E: `test/e2e/specs/<journey>.e2e.spec.js` + `test/e2e/steps/{given,when,then,steps}.js`
+   - Mobile E2E: `integration_test/<Feature>/<flow_name>_test.dart` + `integration_test/helpers/<feature>_actions.dart`
 
 ## Output Requirements
 
 - Follow the detected tech skill's structure template exactly
-- Use the project's actual imports, topics/endpoints, and infrastructure config
+- Use the project's actual imports, routes/screens, and test config
 - One assertion focus per test
 - Descriptive test names: `should <observable outcome> when <condition>`
-- No mocks — all tests hit real infrastructure via containers or deployed environment
-- No hardcoded waits or sleeps — use Playwright auto-wait or Awaitility
+- No mocks — all tests hit a real backend (local stack or deployed environment)
+- No hardcoded waits or sleeps — use Playwright auto-wait or Patrol's built-in waits
 - Each test is independent and resets state before running
 - Specific, realistic test data values (no minimal stubs)

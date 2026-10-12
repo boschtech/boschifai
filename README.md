@@ -387,6 +387,33 @@ order — each was a real bug hit once, fixed, and left here so the fix isn't lo
    navigation once it's on the other side of an `await`, since it no longer looks like a direct
    result of the click.
 
+## Agent isolation
+
+Every pipeline step runs the `claude` CLI inside a repository checkout, so the agent works over
+code we don't control. `App\Services\ClaudeRunner\ClaudeProcessHardening` applies to every
+invocation:
+
+- **No inherited secrets.** The process gets only `PATH`, `HOME`, locale and proxy/CA settings,
+  plus its own credentials. Everything else on the worker (`DB_*`, `APP_KEY`, other API keys) is
+  removed explicitly, so secrets added to the worker later are blocked too. Extra non-secret
+  variables can be allowed with `BOSCHIFAI_CLAUDE_ENV_PASSTHROUGH`.
+- **The repo can't reconfigure the CLI.** A repo's `.claude/settings.local.json` is ignored, and
+  our own `--settings` pins the API endpoint and proxy variables, disables hooks and blanks
+  `apiKeyHelper`, overriding the repo's `.claude/settings.json`. `--strict-mcp-config` ignores the
+  repo's `.mcp.json`. All of these were verified against a deliberately hostile checkout.
+- **The GitHub push token goes to the push step only.** Earlier steps never see it.
+
+For an install shared between customers, also set `BOSCHIFAI_FEATURE_LOCAL_REPOS=false` (the
+local-repo browser reads this host's filesystem; already-connected local repos also stop running)
+and `BOSCHIFAI_FEATURE_GITHUB_MCP_PUSH=false` (one GitHub token for every repo).
+
+**Remaining gap:** the agent can still read files the worker can read through its own tools —
+including the mounted app directory and its `.env`. Closing that needs the agent to run without
+access to app files and secrets (a separate, credential-less runner container, or an API proxy
+that holds the key). `BOSCHIFAI_CLAUDE_RESTRICTED_MODE=true` (Claude Code's `--restricted`:
+file tools confined to the checkout, no Bash) narrows it, but changes what every step can do, so
+it should be verified with a full pipeline run before being switched on.
+
 ## What's not wired up yet
 
 These are real TODOs, not silently-stubbed behavior — the code paths that need them fail with

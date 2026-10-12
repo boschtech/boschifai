@@ -141,6 +141,23 @@ class PushAndOpenPrJobTest extends TestCase
         Http::assertSent(fn ($request) => $request->method() === 'POST' && str_contains((string) $request->url(), '/repos/acme/backend/pulls'));
     }
 
+    public function test_the_default_path_is_used_when_mcp_push_is_disabled_even_with_a_pat(): void
+    {
+        config(['boschifai.github_mcp.pat' => 'fake-pat', 'boschifai.features.github_mcp_push' => false]);
+        Http::fake(['api.github.com/*' => Http::response(['number' => 8, 'html_url' => 'https://github.com/acme/backend/pull/8'], 201)]);
+        Queue::fake([PollCiStatusJob::class]);
+
+        $run = $this->makeRun();
+
+        app()->call([new PushAndOpenPrJob($run->id), 'handle']);
+
+        $run->refresh();
+        $this->assertSame(RunState::CiPending, $run->state);
+        $this->assertSame(8, $run->pr_number);
+        // No Claude/MCP invocation — the push went through the deterministic git + REST path.
+        Process::assertDidntRun(fn ($process) => is_array($process->command) && ($process->command[0] ?? null) === 'claude');
+    }
+
     public function test_the_mcp_path_succeeds_when_claude_pushes_and_the_pr_verifies(): void
     {
         config(['boschifai.github_mcp.pat' => 'fake-pat']);

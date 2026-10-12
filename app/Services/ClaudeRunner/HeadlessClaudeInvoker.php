@@ -61,7 +61,10 @@ class HeadlessClaudeInvoker
         'mcp__github__create_pull_request',
     ];
 
-    public function __construct(private ClaudeTranscriptParser $parser) {}
+    public function __construct(
+        private ClaudeTranscriptParser $parser,
+        private ClaudeProcessHardening $hardening,
+    ) {}
 
     /**
      * @param  callable(): bool  $isCancelled  polled periodically while the process runs; when it
@@ -94,11 +97,18 @@ class HeadlessClaudeInvoker
         // concurrent request (the activity endpoint) can tail it mid-run. A line may be read
         // mid-write and fail json_decode — expected and harmless, every reader here already
         // skips undecodable lines.
-        $githubMcpPat = config('boschifai.github_mcp.pat');
+        // The GitHub token and its MCP server go to the push step only — it's the one step that
+        // uses them (PushAndOpenPrJob), so no other step's agent ever sees a push credential.
+        // Skipped entirely when no PAT is configured: the github-mcp-server would start with no
+        // credential and the invocation would pay --mcp-config's startup wait (up to 30s via
+        // MCP_TIMEOUT) for nothing.
+        $githubMcpPat = $stepKey === RunStepKey::Push->value && config('boschifai.features.github_mcp_push')
+            ? config('boschifai.github_mcp.pat')
+            : null;
 
         $invoked = Process::path($worktreePath)
             ->timeout($timeoutSeconds) // defense-in-depth only — see note on manual deadline below
-            ->env(array_filter([
+            ->env($this->hardening->environment([
                 'ANTHROPIC_API_KEY' => config('boschifai.claude.api_key'),
                 // Read by the github-mcp-server subprocess `claude` itself spawns (see
                 // mcp-config.json) via normal child-process environment inheritance — never
@@ -112,14 +122,11 @@ class HeadlessClaudeInvoker
                 '--verbose',
                 '--permission-mode', 'acceptEdits',
                 '--model', $model,
-                // Only when a PAT is actually configured — otherwise the github-mcp-server
-                // subprocess would start with no credential, fail to authenticate, and this
-                // invocation would pay `--mcp-config`'s own startup-sync wait (up to 30s via
-                // MCP_TIMEOUT) for a server nobody set up yet.
-                ...($githubMcpPat ? ['--mcp-config', config('boschifai.github_mcp.config_path')] : []),
-                ...($githubMcpPat && $stepKey === RunStepKey::Push->value
-                    ? ['--allowedTools', implode(',', self::PUSH_STEP_ALLOWED_TOOLS)]
-                    : []),
+                ...$this->hardening->cliArguments(),
+                ...($githubMcpPat ? [
+                    '--mcp-config', config('boschifai.github_mcp.config_path'),
+                    '--allowedTools', implode(',', self::PUSH_STEP_ALLOWED_TOOLS),
+                ] : []),
             ], function (string $type, string $bytes) use ($transcriptPath, &$errorOutput) {
                 if ($type === \Symfony\Component\Process\Process::OUT) {
                     File::append($transcriptPath, $bytes);

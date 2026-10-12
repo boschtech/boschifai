@@ -19,6 +19,7 @@ class LocalRepoController extends Controller
 {
     public function browse(Request $request)
     {
+        $this->ensureEnabled();
         $root = $this->root();
         $target = $this->resolveWithinRoot($root, (string) $request->query('path', ''));
 
@@ -62,6 +63,7 @@ class LocalRepoController extends Controller
 
     public function connect(ConnectLocalRepositoriesRequest $request)
     {
+        $this->ensureEnabled();
         $root = $this->root();
 
         foreach ($request->validated('repositories') as $repo) {
@@ -124,5 +126,14 @@ class LocalRepoController extends Controller
         $result = Process::path($path)->run(['git', 'rev-parse', '--abbrev-ref', 'HEAD']);
 
         return $result->successful() ? trim($result->output()) : 'main';
+    }
+
+    /**
+     * Browsing reads this host's own filesystem, so it's only safe on an install that serves
+     * one organisation (see `boschifai.features` in config/boschifai.php).
+     */
+    private function ensureEnabled(): void
+    {
+        abort_unless(config('boschifai.features.local_repos'), 404, 'Local repositories are disabled on this installation.');
     }
 }

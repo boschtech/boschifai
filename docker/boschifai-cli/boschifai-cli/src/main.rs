@@ -84,6 +84,13 @@ enum Commands {
         /// Overwrite existing installation
         #[arg(long)]
         force: bool,
+        /// Install only this profile's files (see `profiles` in the template manifest) plus the
+        /// skills for the project's detected tech stack, instead of every template
+        #[arg(long)]
+        profile: Option<String>,
+        /// Use these stacks instead of detecting them (repeatable, or comma-separated)
+        #[arg(long, requires = "profile", value_delimiter = ',', action = ArgAction::Append)]
+        stack: Vec<String>,
     },
 }
 
@@ -363,8 +370,19 @@ async fn main() {
                 commands::report::generate(&input, json);
             }
         },
-        Commands::Init { yes, force } => {
-            if let Err(e) = commands::run_init(yes, force) {
+        Commands::Init {
+            yes,
+            force,
+            profile,
+            stack,
+        } => {
+            let options = commands::init::InitOptions {
+                yes,
+                force,
+                profile,
+                stacks: stack,
+            };
+            if let Err(e) = commands::run_init(&options) {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
             }

@@ -230,3 +230,368 @@ fn reports_a_manifest_entry_whose_template_is_missing() {
     assert!(stderr(&output).contains("Failed to copy"));
     assert!(stderr(&output).contains("boschifai-review.md"));
 }
+
+// ── --profile / --stack ─────────────────────────────────────────────────────────────────
+
+/// Every file under `.claude/` and `.github/` in the project, relative to the project root.
+fn installed(env: &Env) -> Vec<String> {
+    let mut all = Vec::new();
+    for dir in [".claude", ".github"] {
+        let root = env.path(dir);
+        if root.exists() {
+            all.extend(files_under(&root).into_iter().map(|f| format!("{dir}/{f}")));
+        }
+    }
+    all.sort();
+    all
+}
+
+/// Installed skill names, sorted by name (not by file path, where `-` sorts before `/`).
+fn installed_skills(env: &Env) -> Vec<String> {
+    let mut skills: Vec<String> = installed(env)
+        .into_iter()
+        .filter_map(|f| {
+            f.strip_prefix(".claude/skills/")
+                .map(|s| s.trim_end_matches("/SKILL.md").to_string())
+        })
+        .collect();
+    skills.sort();
+    skills
+}
+
+const PIPELINE_COMMANDS: [&str; 4] = [
+    ".claude/commands/boschifai-gen-component.md",
+    ".claude/commands/boschifai-review.md",
+    ".claude/commands/boschifai-test-cases.md",
+    ".claude/commands/boschifai-test-plan.md",
+];
+
+const PIPELINE_SKILLS: [&str; 7] = [
+    "boschifai-gen-component",
+    "boschifai-github-conventions",
+    "boschifai-project-template",
+    "boschifai-review-standards",
+    "boschifai-reviewer",
+    "boschifai-test-levels",
+    "boschifai-test-patterns",
+];
+
+fn with_stack_skills(extra: &[&str]) -> Vec<String> {
+    let mut all: Vec<String> = PIPELINE_SKILLS
+        .iter()
+        .chain(extra)
+        .map(|s| s.to_string())
+        .collect();
+    all.sort();
+    all.dedup();
+    all
+}
+
+#[test]
+fn every_profile_and_stack_file_is_also_in_the_full_install() {
+    let manifest = manifest();
+    let listed: Vec<String> = categories()
+        .into_iter()
+        .flat_map(|(src, _, files)| files.into_iter().map(move |f| format!("{src}/{f}")))
+        .collect();
+    let src_of = |category: &str| match category {
+        "claude_commands" => "claude/commands",
+        "claude_skills" => "claude/skills",
+        "github_prompts" => "github/prompts",
+        other => panic!("unknown category {other}"),
+    };
+
+    let groups = manifest["profiles"]
+        .as_mapping()
+        .unwrap()
+        .values()
+        .chain(manifest["stacks"].as_mapping().unwrap().values());
+    for group in groups {
+        for (category, files) in group["include"].as_mapping().unwrap() {
+            for file in files.as_sequence().unwrap() {
+                let path = format!(
+                    "{}/{}",
+                    src_of(category.as_str().unwrap()),
+                    file.as_str().unwrap()
+                );
+                assert!(listed.contains(&path), "{path} is not in categories");
+            }
+        }
+    }
+}
+
+#[test]
+fn pipeline_profile_installs_only_what_the_pipeline_uses() {
+    let env = Env::with_templates();
+
+    let output = run(&mut env.init(&["--yes", "--profile", "pipeline"]));
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    let commands: Vec<String> = installed(&env)
+        .into_iter()
+        .filter(|f| f.starts_with(".claude/commands/"))
+        .collect();
+    assert_eq!(commands, PIPELINE_COMMANDS);
+    assert_eq!(installed_skills(&env), with_stack_skills(&[]));
+    assert!(
+        !env.path(".github").exists(),
+        "Copilot prompts are not part of the pipeline"
+    );
+
+    let out = stdout(&output);
+    assert!(out.contains("Profile: pipeline"));
+    assert!(out.contains("Stacks (detected): none — installing base skills only"));
+    assert!(out.contains("Installed 11 files."));
+
+    let version = fs::read_to_string(env.path(".boschifai-version")).unwrap();
+    assert!(version.contains("profile: \"pipeline\""));
+    assert!(version.contains("stacks: []"));
+}
+
+#[test]
+fn installed_profile_files_are_exact_copies_of_the_templates() {
+    let env = Env::with_templates();
+    fs::write(
+        env.path("composer.json"),
+        r#"{"require": {"laravel/framework": "^11.0"}}"#,
+    )
+    .unwrap();
+
+    assert!(run(&mut env.init(&["--yes", "--profile", "pipeline"]))
+        .status
+        .success());
+
+    for file in installed(&env) {
+        let template = file
+            .replacen(".claude/commands/", "claude/commands/", 1)
+            .replacen(".claude/skills/", "claude/skills/", 1);
+        assert_eq!(
+            fs::read(env.path(&file)).unwrap(),
+            fs::read(templates_source().join(&template)).unwrap(),
+            "{file}"
+        );
+    }
+}
+
+fn detected_skills(files: &[(&str, &str)]) -> (Vec<String>, String) {
+    let env = Env::with_templates();
+    for (name, content) in files {
+        fs::write(env.path(name), content).unwrap();
+    }
+    let output = run(&mut env.init(&["--yes", "--profile", "pipeline"]));
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    (installed_skills(&env), stdout(&output))
+}
+
+#[test]
+fn detects_a_laravel_project() {
+    let (skills, out) = detected_skills(&[(
+        "composer.json",
+        r#"{"require": {"php": "^8.2", "laravel/framework": "^11.31"}}"#,
+    )]);
+
+    assert!(out.contains("Stacks (detected): laravel"));
+    assert_eq!(
+        skills,
+        with_stack_skills(&[
+            "boschifai-gen-feature-php-laravel",
+            "boschifai-gen-unit-php-laravel",
+            "boschifai-gen-unit"
+        ])
+    );
+}
+
+#[test]
+fn a_plain_php_project_is_not_laravel() {
+    let (skills, _) =
+        detected_skills(&[("composer.json", r#"{"require": {"symfony/console": "^7"}}"#)]);
+
+    assert_eq!(skills, with_stack_skills(&[]));
+}
+
+#[test]
+fn detects_a_flutter_app() {
+    let (skills, out) = detected_skills(&[(
+        "pubspec.yaml",
+        "name: redrabbit\ndependencies:\n  flutter:\n    sdk: flutter\n",
+    )]);
+
+    assert!(out.contains("Stacks (detected): flutter"));
+    assert_eq!(
+        skills,
+        with_stack_skills(&["boschifai-gen-unit-flutter", "boschifai-gen-unit"])
+    );
+}
+
+#[test]
+fn detects_java_rest_and_adds_event_skills_only_for_messaging_services() {
+    let (rest, out) = detected_skills(&[(
+        "pom.xml",
+        "<artifactId>spring-boot-starter-web</artifactId>",
+    )]);
+    assert!(out.contains("Stacks (detected): java-rest"));
+    assert_eq!(
+        rest,
+        with_stack_skills(&["boschifai-gen-component-java-rest"])
+    );
+
+    let (event, out) = detected_skills(&[(
+        "build.gradle.kts",
+        "implementation(\"com.solace.spring.boot:solace-spring-boot-starter\")",
+    )]);
+    assert!(out.contains("Stacks (detected): java-event, java-rest"));
+    assert_eq!(
+        event,
+        with_stack_skills(&[
+            "boschifai-gen-component-java-event",
+            "boschifai-gen-component-java-rest"
+        ])
+    );
+}
+
+#[test]
+fn detects_a_node_bff_only_from_real_dependencies() {
+    let (bff, out) =
+        detected_skills(&[("package.json", r#"{"dependencies": {"koa": "^2.15.0"}}"#)]);
+    assert!(out.contains("Stacks (detected): node-bff"));
+    assert_eq!(
+        bff,
+        with_stack_skills(&["boschifai-gen-component-nextjs-bff"])
+    );
+
+    // A frontend-only package.json (like this app's own Vue/Vite one) is not a BFF.
+    let (frontend, _) = detected_skills(&[(
+        "package.json",
+        r#"{"devDependencies": {"vite": "^6", "vitest": "^3"}, "dependencies": {"vue": "2.7"}}"#,
+    )]);
+    assert_eq!(frontend, with_stack_skills(&[]));
+}
+
+#[test]
+fn detects_several_stacks_in_one_repository() {
+    let (skills, out) = detected_skills(&[
+        (
+            "composer.json",
+            r#"{"require": {"laravel/framework": "^11"}}"#,
+        ),
+        ("package.json", r#"{"dependencies": {"express": "^4"}}"#),
+    ]);
+
+    assert!(out.contains("Stacks (detected): laravel, node-bff"));
+    assert!(skills.contains(&"boschifai-gen-feature-php-laravel".to_string()));
+    assert!(skills.contains(&"boschifai-gen-component-nextjs-bff".to_string()));
+}
+
+#[test]
+fn stack_flag_overrides_detection() {
+    let env = Env::with_templates();
+    fs::write(
+        env.path("composer.json"),
+        r#"{"require": {"laravel/framework": "^11"}}"#,
+    )
+    .unwrap();
+
+    let output = run(&mut env.init(&[
+        "--yes",
+        "--profile",
+        "pipeline",
+        "--stack",
+        "flutter,java-rest",
+        "--stack",
+        "flutter",
+    ]));
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stdout(&output).contains("Stacks (from --stack): flutter, java-rest"));
+    let skills = installed_skills(&env);
+    assert!(skills.contains(&"boschifai-gen-unit-flutter".to_string()));
+    assert!(skills.contains(&"boschifai-gen-component-java-rest".to_string()));
+    assert!(!skills.contains(&"boschifai-gen-feature-php-laravel".to_string()));
+    let version = fs::read_to_string(env.path(".boschifai-version")).unwrap();
+    assert!(version.contains("stacks: [\"flutter\", \"java-rest\"]"));
+}
+
+#[test]
+fn rejects_an_unknown_profile_or_stack() {
+    let env = Env::with_templates();
+
+    let profile = run(&mut env.init(&["--yes", "--profile", "everything"]));
+    assert!(!profile.status.success());
+    assert!(
+        stderr(&profile).contains("Unknown profile \"everything\". Available profiles: pipeline")
+    );
+
+    let stack = run(&mut env.init(&["--yes", "--profile", "pipeline", "--stack", "cobol"]));
+    assert!(!stack.status.success());
+    assert!(stderr(&stack).contains(
+        "Unknown stack \"cobol\". Available stacks: flutter, java-event, java-rest, laravel, node-bff"
+    ));
+
+    assert!(!env.path(".boschifai-version").exists());
+}
+
+#[test]
+fn stack_requires_a_profile() {
+    let env = Env::with_templates();
+
+    let output = run(&mut env.init(&["--yes", "--stack", "laravel"]));
+
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("--profile"));
+}
+
+#[test]
+fn reinstalling_with_a_profile_removes_templates_it_does_not_include() {
+    let env = Env::with_templates();
+    assert!(run(&mut env.init(&["--yes"])).status.success());
+    assert!(env
+        .path(".claude/skills/boschifai-gen-storybook/SKILL.md")
+        .exists());
+
+    let output = run(&mut env.init(&["--yes", "--force", "--profile", "pipeline"]));
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(installed_skills(&env), with_stack_skills(&[]));
+    assert!(
+        !env.path(".github/prompts").exists()
+            || installed(&env).iter().all(|f| !f.starts_with(".github/"))
+    );
+}
+
+#[test]
+fn reports_a_profile_that_lists_a_file_missing_from_its_category() {
+    let env = Env::with_templates();
+    let manifest_path = env.home.path().join(".boschifai/templates/manifest.yaml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .unwrap()
+        .replace(
+            "        - boschifai-review.md\n        - boschifai-test-plan.md\n        - boschifai-test-cases.md\n        - boschifai-gen-component.md",
+            "        - boschifai-review.md\n        - boschifai-not-real.md",
+        );
+    fs::write(&manifest_path, manifest).unwrap();
+
+    let output = run(&mut env.init(&["--yes", "--profile", "pipeline"]));
+
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains(
+        "Manifest error: \"boschifai-not-real.md\" is not listed under the claude_commands category"
+    ));
+}
+
+#[test]
+fn reports_a_profile_with_an_unknown_category() {
+    let env = Env::with_templates();
+    let manifest_path = env.home.path().join(".boschifai/templates/manifest.yaml");
+    let manifest = fs::read_to_string(&manifest_path).unwrap().replacen(
+        "      claude_commands:\n        - boschifai-review.md",
+        "      cursor_rules:\n        - boschifai-review.md",
+        1,
+    );
+    fs::write(&manifest_path, manifest).unwrap();
+
+    let output = run(&mut env.init(&["--yes", "--profile", "pipeline"]));
+
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("Manifest error: unknown category \"cursor_rules\""));
+}

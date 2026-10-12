@@ -73,3 +73,75 @@ categories:
       - boschifai-test-report.prompt.md
       - boschifai-test-strategy.prompt.md
       - boschifai-traceability.prompt.md
+
+# ── Profiles ────────────────────────────────────────────────────────────────────────────
+# `boschifai init` with no --profile installs every file listed above (unchanged behaviour for
+# people using the CLI by hand). `boschifai init --profile <name>` installs only the profile's
+# own files plus the files of every stack detected in the current directory (or the stacks
+# named with --stack). Every file listed here must also be listed in `categories` above.
+profiles:
+  pipeline:
+    description: "What the BoschifAI app's run pipeline uses: review, test plan, test cases, code generation and push"
+    include:
+      claude_commands:
+        - boschifai-review.md
+        - boschifai-test-plan.md
+        - boschifai-test-cases.md
+        - boschifai-gen-component.md
+      claude_skills:
+        - boschifai-review-standards/SKILL.md   # testability scoring used by /boschifai-review
+        - boschifai-test-levels/SKILL.md        # used while writing the test plan
+        - boschifai-test-patterns/SKILL.md      # TC-ID format and mandatory fields for test cases
+        - boschifai-reviewer/SKILL.md           # test-case validator step
+        - boschifai-gen-component/SKILL.md      # base rules every stack skill extends
+        - boschifai-github-conventions/SKILL.md # branch/PR conventions for the push step
+        - boschifai-project-template/SKILL.md   # read by the "Build Skills" standalone action
+
+# ── Stacks ──────────────────────────────────────────────────────────────────────────────
+# A stack is detected when ANY of its `detect` rules matches: the file exists in the project
+# root and (if `contains` is given) includes at least one of those strings. Detection only
+# applies with --profile; plain `init` installs everything regardless.
+stacks:
+  laravel:
+    detect:
+      - file: composer.json
+        contains: ["laravel/framework"]
+    include:
+      claude_skills:
+        - boschifai-gen-feature-php-laravel/SKILL.md
+        - boschifai-gen-unit-php-laravel/SKILL.md
+        - boschifai-gen-unit/SKILL.md            # base that gen-unit-php-laravel extends
+  flutter:
+    detect:
+      - file: pubspec.yaml
+        contains: ["flutter"]
+    include:
+      claude_skills:
+        - boschifai-gen-unit-flutter/SKILL.md
+        - boschifai-gen-unit/SKILL.md            # base that gen-unit-flutter extends
+  java-rest:
+    detect:
+      - file: pom.xml
+      - file: build.gradle
+      - file: build.gradle.kts
+    include:
+      claude_skills:
+        - boschifai-gen-component-java-rest/SKILL.md
+  java-event:
+    detect:
+      - file: pom.xml
+        contains: ["solace", "sol-jcsmp", "jms"]
+      - file: build.gradle
+        contains: ["solace", "sol-jcsmp", "jms"]
+      - file: build.gradle.kts
+        contains: ["solace", "sol-jcsmp", "jms"]
+    include:
+      claude_skills:
+        - boschifai-gen-component-java-event/SKILL.md
+  node-bff:
+    detect:
+      - file: package.json
+        contains: ['"koa":', '"express":', '"next":']
+    include:
+      claude_skills:
+        - boschifai-gen-component-nextjs-bff/SKILL.md

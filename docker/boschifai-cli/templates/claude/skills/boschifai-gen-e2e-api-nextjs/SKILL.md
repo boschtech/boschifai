@@ -31,7 +31,7 @@ conditions.
 | `supertest` | `3.0.0` | Imported but **not used** in SIT — all HTTP is via pactum |
 | `jest-junit` | `^16.0.0` | JUnit XML reporter |
 | `jest-html-reporter` | `^3.10.2` | HTML reporter |
-| `uuid` | `8.3.2` | Generating unique `storeId`, `transactionId`, `ekSessionId` |
+| `uuid` | `8.3.2` | Generating unique `storeId`, `transactionId`, `sessionId` |
 | `cross-env` | `^7.0.3` | Environment variable injection for `test:sit` script |
 | `dotenv` | `^8.2.0` | Loads `.env.sit` via `--setupFiles=dotenv/config` |
 
@@ -75,7 +75,7 @@ test/
 │   │   ├── <authHeaders>.json   ← Auth client-credentials headers
 │   │   ├── <orderHeaders>.json  ← Direct order GET headers
 │   │   ├── <tdmHeaders>.json    ← TDM orchestrate POST headers
-│   │   └── <tdmPnrHeaders>.json ← TDM PNR retrieval POST headers
+│   │   └── <tdmLookupHeaders>.json ← TDM reference lookup POST headers
 │   ├── specs/
 │   │   ├── base.spec.js         ← shared lifecycle hooks
 │   │   └── <journey>.sit.spec.js
@@ -180,13 +180,13 @@ async givenIHaveAValidAuthToken() {
 async givenIhaveAddedSessionStoreDocumentToCouchdb() {
   this.storeId = uuidv4();
   this.transactionId = uuidv4();
-  const ekSessionId = uuidv4();
+  const sessionId = uuidv4();
   const doc = JSON.parse(JSON.stringify(couchdbDocument));  // deep clone
   doc.data.<storePath>.orderId       = this.orchestrateAPIResponse.orderId;
   doc.data.<storePath>.cartId        = this.orchestrateAPIResponse.cartId;
   doc.data.<storePath>.quoteId       = this.orchestrateAPIResponse.quoteId;
   doc.data.<storePath>.transactionId = this.transactionId;
-  doc.data.<storePath>.ekSessionId   = ekSessionId;
+  doc.data.<storePath>.sessionId     = sessionId;
   await utils.createCouchDBDocument(doc, this.storeId);
   return this.getThis();
 }
@@ -196,7 +196,7 @@ async givenIhavesetRequestHeaders() {
   <sessionCookie>.cartId        = this.orchestrateAPIResponse.cartId;
   <sessionCookie>.quoteId       = this.orchestrateAPIResponse.quoteId;
   <sessionCookie>.transactionId = this.transactionId;
-  <sessionCookie>.flightSearchId = uuidv4();
+  <sessionCookie>.searchId      = uuidv4();
   this.requestHeaders = { ...headers };
   this.requestHeaders.cookie = `<SSO_COOKIE>=1; <FLOW_COOKIE>=${JSON.stringify(<sessionCookie>)}; <STORE_COOKIE>=${this.storeId}`;
   return this.getThis();
@@ -289,8 +289,8 @@ async thenIShouldVerifyResponseRecommendationFor<RuleType>() {
       "cartId":        "<from TDM response.cartId>",
       "quoteId":       "<from TDM response.quoteId>",
       "transactionId": "<new uuidv4() per test>",
-      "ekSessionId":   "<new uuidv4() per test>",
-      "flightSearchId":"<any uuid>",
+      "sessionId":     "<new uuidv4() per test>",
+      "searchId":      "<any uuid>",
       "orderId":       "<from TDM response.orderId>",
       "recommendationsPayload": {
         "<flag1>": false,

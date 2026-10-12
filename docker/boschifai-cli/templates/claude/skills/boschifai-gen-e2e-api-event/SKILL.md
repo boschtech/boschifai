@@ -426,7 +426,7 @@ environments. Only network access to the target environment is needed.
 | Target API gateway | Yes | Hosts the payment/order/resource endpoints |
 | Auth endpoint | Yes | OAuth2 token or Basic auth |
 | Message broker | Via orchestration | Event published by TDM/orchestration client — no local broker |
-| Downstream systems | Yes | PNR systems, databases, etc. — all real |
+| Downstream systems | Yes | Order/booking systems, databases, etc. — all real |
 | WireMock | None | No stubs |
 | Local DB / Couchbase | None | Not used by SIT |
 
@@ -538,7 +538,7 @@ Before increasing `maxAttempts`:
 |---|---|---|
 | `ConditionTimeoutException` on status poll | Event not processed; orchestration failed or wrong environment filter | Log `when*` response; check broker binding |
 | `NullPointerException` on `token` | `@BeforeAll` auth call failed; no network or wrong credentials | Check gateway connectivity; verify base64 key |
-| Downstream reference (PNR / record ID) is null | Resource not fully processed; reference extraction path changed | Assert resource status first; inspect raw response DTO |
+| Downstream reference (booking reference / record ID) is null | Resource not fully processed; reference extraction path changed | Assert resource status first; inspect raw response DTO |
 | Downstream retrieval returns empty | Resource ID correct but downstream system is slow | Retry; add pre-retrieval Awaitility wait if needed |
 | `AssertionError` in `assertAll()` | One or more soft assertions failed | Use `.as()` label in failure output to locate the failing `Then` step |
 | Async processing Awaitility timeout | Deferred state never set; background processor failed | Check resource status; verify processor health in SIT env |

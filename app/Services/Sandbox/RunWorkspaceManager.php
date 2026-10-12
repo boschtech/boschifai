@@ -46,8 +46,13 @@ class RunWorkspaceManager
             File::deleteDirectory($path.'/'.$scaffoldDir);
         }
 
-        // Materialize .claude/commands + .claude/skills — see class docblock.
-        $this->run($path, ['boschifai', 'init', '--yes', '--force']);
+        // Materialize .claude/commands + .claude/skills — see class docblock. `--profile pipeline`
+        // installs only the commands/skills this pipeline actually uses, plus the stack-specific
+        // skills for whatever the repo is (detected by the CLI from composer.json, pubspec.yaml,
+        // pom.xml, package.json, …; see the `profiles`/`stacks` sections of manifest.yaml).
+        // Installing every template instead offered Claude unrelated stacks' skills to choose
+        // from at code generation — the same wrong-skill risk as the stale-directory bug above.
+        $this->run($path, ['boschifai', 'init', '--yes', '--force', '--profile', 'pipeline']);
 
         $this->copyUntrackedFiles($repo, $path);
 

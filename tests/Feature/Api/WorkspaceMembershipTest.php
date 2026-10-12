@@ -9,6 +9,7 @@ use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Models\WorkspaceInvitation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
@@ -82,7 +83,9 @@ class WorkspaceMembershipTest extends TestCase
         $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id, 'github_user_id' => 1, 'github_login' => 'x', 'access_token' => 'gho_x']);
         $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id, 'name' => 'api', 'display_name' => 'x/api', 'git_remote_path' => '/x', 'base_branch' => 'main']);
         $run = Run::create(['repo_config_id' => $repo->id, 'requirement_text' => 'x', 'target_file_path' => '', 'state' => RunState::Draft]);
-        $ids = ['run' => $run->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'organization' => 'acme'];
+        $colleague = $this->memberOf($this->workspace(), WorkspaceRole::Member, 'colleague@example.com');
+        $invitation = WorkspaceInvitation::create(['workspace_id' => $this->workspace()->id, 'email' => 'new@example.com', 'role' => WorkspaceRole::Member, 'token_hash' => str_repeat('a', 64), 'expires_at' => now()->addDay()]);
+        $ids = ['run' => $run->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'organization' => 'acme', 'member' => $colleague->id, 'invitation' => $invitation->id];
 
         $manageRoutes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn (RoutingRoute $route) => in_array('workspace.manage', $route->gatherMiddleware(), true));
@@ -97,6 +100,8 @@ class WorkspaceMembershipTest extends TestCase
 
         $this->assertSame(1, Run::count());
         $this->assertSame(1, RepoConfig::count());
+        $this->assertSame(1, WorkspaceInvitation::count());
+        $this->assertSame(WorkspaceRole::Member, $colleague->roleIn($this->workspace()));
     }
 
     public function test_members_can_do_the_day_to_day_work(): void

@@ -18,10 +18,14 @@ return [
         'token' => env('POSTMARK_TOKEN'),
     ],
 
+    // Outgoing email (MAIL_MAILER=ses). Leave the key and secret empty on AWS: the SDK then uses
+    // the ECS task role (or instance profile), so no long-lived key sits in the environment. Set
+    // them only where there is no role, e.g. local development. SES_REGION is where the sending
+    // identity (domain or address) is verified — it can differ from the rest of the AWS setup.
     'ses' => [
-        'key' => env('AWS_ACCESS_KEY_ID'),
-        'secret' => env('AWS_SECRET_ACCESS_KEY'),
-        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+        'key' => env('SES_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+        'secret' => env('SES_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+        'region' => env('SES_REGION', env('AWS_DEFAULT_REGION', 'us-east-1')),
     ],
 
     'resend' => [

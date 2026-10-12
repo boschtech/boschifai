@@ -1,6 +1,6 @@
 <template>
-    <!-- Guest pages (login, forgot/reset password) have their own full-page layout. -->
-    <router-view v-if="$route.meta.guest" />
+    <!-- Guest pages (login, forgot/reset password) and the invitation link have their own full-page layout. -->
+    <router-view v-if="fullPage" />
 
     <div v-else class="min-h-screen bg-bg">
         <header ref="header" class="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
@@ -69,12 +69,16 @@ export default {
 
     computed: {
         ...mapGetters('auth', ['user', 'canManage']),
+
+        fullPage() {
+            return Boolean(this.$route.meta.guest || this.$route.meta.public);
+        },
     },
 
     watch: {
-        // Coming from a guest page (e.g. just signed in): the header only now exists to measure.
-        '$route.meta.guest'(isGuest) {
-            if (!isGuest) this.$nextTick(this.updateHeaderHeight);
+        // Coming from a full-page screen (e.g. just signed in): the header only now exists to measure.
+        fullPage(isFullPage) {
+            if (!isFullPage) this.$nextTick(this.updateHeaderHeight);
         },
     },
 

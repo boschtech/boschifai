@@ -5,6 +5,7 @@ namespace Tests\Feature\Migrations;
 use App\Support\Migrations\LegacyWorkspaceBackfill;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 /**
@@ -19,8 +20,12 @@ class LegacyWorkspaceBackfillTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Undo "enforce constraints" and "backfill" — workspace_id is nullable again.
-        $this->artisan('migrate:rollback', ['--step' => 2])->assertSuccessful();
+        // Roll back to just after the workspace columns were added (still nullable): the
+        // backfill, the constraints, and anything that came later.
+        $later = collect(File::files(database_path('migrations')))
+            ->filter(fn ($file) => $file->getFilename() > '2026_10_13_100001_add_workspace_and_user_columns_to_tenant_tables.php')
+            ->count();
+        $this->artisan('migrate:rollback', ['--step' => $later])->assertSuccessful();
     }
 
     private function seedLegacyData(): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\RunState;
+use App\Enums\WorkspaceRole;
 use App\Models\ClaudeInvocation;
 use App\Models\GithubConnection;
 use App\Models\RepoConfig;
@@ -10,6 +11,7 @@ use App\Models\Run;
 use App\Models\RunStep;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Models\WorkspaceInvitation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
@@ -48,7 +50,14 @@ class TenantIsolationTest extends TestCase
         $step = RunStep::create(['run_id' => $run->id, 'key' => 'gap_analysis', 'status' => 'failed']);
         ClaudeInvocation::create(['run_step_id' => $step->id, 'command' => '/x', 'prompt_text' => 'x', 'total_cost_usd' => 9.99, 'input_tokens' => 1000]);
 
-        $this->foreign = ['run' => $run->id, 'step' => $step->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'workspace' => $this->other->id];
+        $theirMember = User::create(['name' => 'Theirs', 'email' => 'theirs@example.com', 'password' => 'correct-horse-battery-9']);
+        $this->other->addMember($theirMember, WorkspaceRole::Member);
+        $theirInvitation = WorkspaceInvitation::create(['workspace_id' => $this->other->id, 'email' => 'invitee@example.com', 'role' => WorkspaceRole::Member, 'token_hash' => str_repeat('b', 64), 'expires_at' => now()->addDay()]);
+
+        $this->foreign = [
+            'run' => $run->id, 'step' => $step->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'workspace' => $this->other->id,
+            'member' => $theirMember->id, 'invitation' => $theirInvitation->id,
+        ];
     }
 
     public function test_every_route_taking_another_workspaces_record_returns_404(): void
@@ -71,6 +80,8 @@ class TenantIsolationTest extends TestCase
 
         $this->assertGreaterThanOrEqual(15, $checked);
         $this->assertSame(RunState::Failed, Run::sole()->state, 'Nothing about the other workspace changed');
+        $this->assertSame(1, WorkspaceInvitation::count());
+        $this->assertSame(WorkspaceRole::Member, User::where('email', 'theirs@example.com')->sole()->roleIn($this->other));
     }
 
     public function test_lists_and_totals_only_show_the_current_workspace(): void

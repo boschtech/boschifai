@@ -113,6 +113,8 @@ export function makeLocalVueWithRouter({ path = '/', query = {}, routes = [] } =
             { path: '/forgot-password', name: 'password.forgot', meta: { guest: true } },
             { path: '/reset-password/:token', name: 'password.reset', meta: { guest: true } },
             { path: '/account', name: 'account' },
+            { path: '/invitations/:token', name: 'invitations.show', meta: { public: true } },
+            { path: '/settings/workspace', name: 'settings.workspace', meta: { requiresManage: true } },
             ...routes,
         ],
     });
@@ -139,6 +141,8 @@ export function mockApi(routes) {
     window.axios.get.mockImplementation(respond('GET'));
     window.axios.post.mockImplementation(respond('POST'));
     window.axios.delete.mockImplementation(respond('DELETE'));
+    window.axios.patch = vi.fn(respond('PATCH'));
+    window.axios.put = vi.fn(respond('PUT'));
 }
 
 export function apiError(message) {

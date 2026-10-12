@@ -12,6 +12,9 @@ Route::middleware(['auth', 'workspace', 'workspace.manage'])->group(function () 
     Route::get('/github/callback', GithubOAuthCallbackController::class)->name('github.callback');
 });
 
+// Named so the invitation email can link here; the SPA renders the accept page.
+Route::get('/invitations/{token}', fn () => view('app'))->name('invitations.show');
+
 // Named so Fortify's password-reset email can link here; the SPA renders the reset form.
 Route::get('/reset-password/{token}', fn () => view('app'))->name('password.reset');
 

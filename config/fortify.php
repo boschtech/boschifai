@@ -160,9 +160,10 @@ return [
     */
 
     'features' => [
-        // Registration stays off until workspaces exist (Phase 1, next PR): a self-registered
-        // user would otherwise see every run and repository. Users are created with
-        // `php artisan boschifai:create-user` until then. Two-factor and passkeys can be
+        // Registration stays off until billing exists (Phase 2): a self-registered workspace
+        // would run on the platform's Anthropic key for free. Until then people join by
+        // invitation (InvitationAcceptController) and new workspaces are created with
+        // `php artisan boschifai:create-user`. Two-factor and passkeys can be
         // added later (e.g. required for workspace owners) together with their migrations.
         Features::resetPasswords(),
         Features::updatePasswords(),

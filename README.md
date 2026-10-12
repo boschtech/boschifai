@@ -24,7 +24,7 @@ per repo may be in flight at a time (`RunController::store()` rejects a second o
 
 | Layer | Technology |
 | --- | --- |
-| Backend | Laravel 11 (PHP 8.2+; the Docker image runs PHP 8.3), Guzzle, `symfony/process` |
+| Backend | Laravel 12 (PHP 8.2+; the Docker image runs PHP 8.3), Guzzle, `symfony/process` |
 | Frontend | Vue 2.7 SPA, Vue Router 3, Vuex 3, Vite 6, TailwindCSS 3 (+ typography), `marked` + DOMPurify for Markdown artifacts |
 | Database / queue | MySQL 8 in Docker, SQLite bare-host; Laravel `database` queue driver |
 | AI engine | Claude Code CLI run headless (`claude -p`), model `BOSCHIFAI_CLAUDE_MODEL` (default `claude-sonnet-5`) |
@@ -212,8 +212,29 @@ Roles per workspace:
 |---|---|---|---|
 | Submit, review, approve, retry, cancel, archive runs | ✓ | ✓ | ✓ |
 | Connect/remove repositories and GitHub accounts, delete runs | | ✓ | ✓ |
+| Invite people, change roles, remove members, rename the workspace | | ✓ | ✓ |
+| Grant, change or remove the **owner** role | | | ✓ |
 
-Users are created by an administrator (self-registration and invitations come next):
+A workspace always keeps at least one owner: the last owner can't be demoted or removed until
+someone else is made an owner. Every membership change (invited, revoked, joined, role changed,
+removed, renamed) is written to the append-only `audit_events` table.
+
+### Inviting people
+
+Admins and owners manage the workspace under **Settings → Workspace**: invite by email with a role,
+change roles, remove members and revoke pending invitations. The invitation email goes through the
+same mail settings as password resets — see [Sending email](#sending-email-amazon-ses). Its link opens `/invitations/{token}`:
+
+- someone **new** chooses a name and password there and is signed straight in (the address is
+  treated as verified — they received the email);
+- someone who **already has an account** signs in first and then joins with one click — an
+  invitation never sets or changes an existing account's password;
+- the link only works for the invited address, expires after **7 days**, works **once**, and
+  re-inviting the same address replaces the earlier link. Only a SHA-256 hash of the token is
+  stored, so a database dump can't be used to accept invitations.
+
+There's no open sign-up page: until billing exists, people join a workspace by invitation, and the
+very first user (or a brand-new workspace) is created from the command line:
 
 ```bash
 php artisan boschifai:create-user someone@example.com --name="Someone" --workspace="Acme Rentals" --role=admin
@@ -225,13 +246,70 @@ a new workspace and **member** of an existing one.
 
 The password is typed at a hidden prompt (at least 12 characters, letters and numbers); it is never
 taken as an argument or printed. Users can change it under **Account**, or reset it from
-**Forgot your password?** on the login page — the reset email goes through the `MAIL_*` settings
-(`MAIL_MAILER=log` writes it to `storage/logs/laravel.log` locally; configure SES for real use).
+**Forgot your password?** on the login page — the reset email goes through the mail settings
+(see [Sending email](#sending-email-amazon-ses)).
 The forgot-password form replies the same way whether or not an address has an account, so it
 can't be used to discover who has one.
 
 If the app is served from a host or port other than `APP_URL`, add it to `SANCTUM_STATEFUL_DOMAINS`,
 otherwise sign-in succeeds but API calls return 401.
+
+### Sending email (Amazon SES)
+
+Invitations and password resets are emailed. With the default `MAIL_MAILER=log` nothing is sent —
+each message is written to `storage/logs/laravel.log` (handy locally: the invitation link is in
+there). To deliver real email through Amazon SES:
+
+1. **Verify a sending identity in SES** — preferably your domain (publish the DKIM CNAME records
+   SES gives you; add SPF/DMARC too), in the region you'll send from. Check SES is offered in your
+   preferred region; using one in South Africa avoids sending recipients' addresses abroad (POPIA
+   section 72 — confirm with whoever owns compliance if you use a region elsewhere).
+2. **Leave the SES sandbox.** A new SES account can only send *to* verified addresses — invitations
+   to anyone else fail with "Email address is not verified". Request production access in the SES
+   console (Account dashboard), or verify each test recipient while you wait.
+3. **Give the app permission to send — and nothing else.** On ECS, attach this to the task role
+   and leave the key variables empty; locally, create an IAM user with only this policy and put its
+   access key in `SES_ACCESS_KEY_ID` / `SES_SECRET_ACCESS_KEY` (never commit them; in production use
+   the role or AWS SSM, not a plain `.env` value):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "ses:SendRawEmail",
+       "Resource": "arn:aws:ses:<region>:<account-id>:identity/<your-domain>",
+       "Condition": { "StringEquals": { "ses:FromAddress": "<MAIL_FROM_ADDRESS>" } }
+     }]
+   }
+   ```
+
+4. **Configure the app** (`.env`):
+
+   ```dotenv
+   MAIL_MAILER=ses
+   MAIL_FROM_ADDRESS="no-reply@your-domain"   # on the identity verified in step 1
+   MAIL_FROM_NAME="BoschifAI"
+   SES_REGION=<region from step 1>
+   SES_ACCESS_KEY_ID=          # empty on AWS (task role); set only locally
+   SES_SECRET_ACCESS_KEY=
+   ```
+
+   `SES_*` fall back to `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION` when
+   unset. None of these variables reach the `claude` process (see [Agent isolation](#agent-isolation)).
+
+5. **Restart and test:**
+
+   ```bash
+   docker compose restart app worker
+   docker compose exec app php artisan boschifai:send-test-email you@your-domain
+   ```
+
+   It prints the mailer, sender and region in use (never the credentials) and, if SES refuses the
+   message, SES's own reason.
+
+If an invitation email can't be sent, nothing is saved — the admin sees "We couldn't send the
+invitation email" and can try again, and any earlier link for that address keeps working.
 
 ## Running the app
 
@@ -489,8 +567,9 @@ a clear error rather than pretending to succeed:
   the Claude invocation itself hasn't had the same treatment). Production should run it in a
   more locked-down container with network egress restricted to `api.anthropic.com` and no
   GitHub/AWS/DB credentials present — today's Docker setup does not attempt this isolation.
-- **No invitations or self-registration yet** — users are added with `boschifai:create-user` (see
-  [Signing in and workspaces](#signing-in-and-workspaces)); inviting people from the app comes next.
+- **No self-registration** — people join by invitation (see
+  [Inviting people](#inviting-people)); creating a new workspace still needs
+  `boschifai:create-user`. Open sign-up is planned together with prepaid credits.
 - **Single global concurrency limit, not a real queue/lock** — only one Run per repo may be in
   flight (enforced in `RunController::store()`), a deliberate simplification the shared-checkout
   design accepts rather than solves for; fine for today's usage, would need real

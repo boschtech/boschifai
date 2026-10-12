@@ -15,6 +15,8 @@ import LoginPage from '../pages/auth/LoginPage.vue';
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue';
 import AccountPage from '../pages/AccountPage.vue';
+import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue';
+import WorkspaceSettingsPage from '../pages/WorkspaceSettingsPage.vue';
 import store from '../store';
 import { createAuthGuard } from './authGuard';
 
@@ -28,6 +30,10 @@ const routes = [
     // Linked from the password-reset email (route name `password.reset` in routes/web.php).
     { path: '/reset-password/:token', name: 'password.reset', component: ResetPasswordPage, props: true, meta: { guest: true } },
     { path: '/account', name: 'account', component: AccountPage },
+    // Linked from the invitation email (route name `invitations.show` in routes/web.php). Open to
+    // everyone — the page adapts to whether, and as whom, the visitor is signed in.
+    { path: '/invitations/:token', name: 'invitations.show', component: AcceptInvitationPage, props: true, meta: { public: true } },
+    { path: '/settings/workspace', name: 'settings.workspace', component: WorkspaceSettingsPage, meta: { requiresManage: true } },
 
     // '/' is a standalone summary/landing page — deliberately NOT the runs list. The header
     // logo and "Home" button both point here; the sidebar's "All Runs" link points at

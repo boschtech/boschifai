@@ -7,11 +7,12 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "aws/aws-sdk-php": "^3.400",
         "guzzlehttp/guzzle": "^7.15",
         "laravel/fortify": "^1.41",
-        "laravel/framework": "^11.31",
+        "laravel/framework": "^12.60",
         "laravel/sanctum": "^4.3",
-        "laravel/tinker": "^2.9",
+        "laravel/tinker": "^2.10.1",
         "symfony/process": "^7.4"
     },
     "require-dev": {

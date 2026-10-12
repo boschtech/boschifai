@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
 /**
- * Creates a user who can sign in. Self-registration is off until workspaces exist (see
- * config/fortify.php), so this is how users are added — including the very first one after
- * deploying sign-in, without whom nobody could reach the app.
+ * Creates a user who can sign in. Self-registration is off until billing exists (see
+ * config/fortify.php) and everyone else joins by invitation, so this is how the first user — and
+ * the owner of any new workspace — is added; without it nobody could reach the app.
  *
  * Every user belongs to a workspace: --workspace picks it by name (created if missing, owned by
  * this user unless --role says otherwise).

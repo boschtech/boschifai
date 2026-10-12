@@ -2,7 +2,10 @@
 
 namespace Tests\Unit\Services;
 
+use App\Enums\ClaudeBillingMode;
+use App\Enums\ClaudeCredentialSource;
 use App\Services\ClaudeRunner\ClaudeProcessHardening;
+use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
@@ -28,11 +31,7 @@ class HeadlessClaudeInvokerTest extends TestCase
     {
         parent::setUp();
         $this->dir = sys_get_temp_dir().'/boschifai-invoker-test-'.uniqid();
-        config([
-            'boschifai.claude.model' => 'test-model',
-            'boschifai.claude.api_key' => 'sk-test',
-            'boschifai.github_mcp.pat' => null,
-        ]);
+        config(['boschifai.github_mcp.pat' => null]);
     }
 
     protected function tearDown(): void
@@ -46,6 +45,11 @@ class HeadlessClaudeInvokerTest extends TestCase
         return app(HeadlessClaudeInvoker::class);
     }
 
+    private function credentials(array $env = ['ANTHROPIC_API_KEY' => 'sk-test'], array $secrets = ['sk-test']): ResolvedClaudeCredentials
+    {
+        return new ResolvedClaudeCredentials($env, 'test-model', ClaudeBillingMode::Platform, ClaudeCredentialSource::Platform, $secrets);
+    }
+
     public function test_a_successful_invocation_writes_the_transcript_and_parses_its_summary(): void
     {
         $output = json_encode(['type' => 'assistant', 'message' => ['content' => [['type' => 'text', 'text' => 'hi']]]])."\n"
@@ -54,7 +58,7 @@ class HeadlessClaudeInvokerTest extends TestCase
         Process::fake(['*' => Process::result(output: $output, errorOutput: 'some warning')]);
 
         $transcript = $this->dir.'/nested/transcript.jsonl';
-        $result = $this->invoker()->invoke($this->dir, 'Do the thing', $transcript, 60, fn () => false);
+        $result = $this->invoker()->invoke($this->dir, 'Do the thing', $transcript, 60, fn () => false, $this->credentials());
 
         $this->assertTrue($result->succeeded());
         $this->assertSame(0, $result->exitCode);
@@ -88,7 +92,7 @@ class HeadlessClaudeInvokerTest extends TestCase
         Process::fake();
 
         try {
-            $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, 'code_generation');
+            $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, $this->credentials(), 'code_generation');
         } finally {
             unset($_SERVER['DB_PASSWORD'], $_ENV['APP_KEY']);
         }
@@ -101,13 +105,50 @@ class HeadlessClaudeInvokerTest extends TestCase
             && in_array('--setting-sources', $process->command, true));
     }
 
+    public function test_the_process_runs_with_whatever_credentials_and_model_were_resolved(): void
+    {
+        Process::fake();
+        $credentials = new ResolvedClaudeCredentials(
+            ['CLAUDE_CODE_USE_BEDROCK' => '1', 'AWS_REGION' => 'eu-west-1'],
+            'bedrock-model-id',
+            ClaudeBillingMode::Platform,
+            ClaudeCredentialSource::Platform,
+        );
+
+        $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, $credentials, 'code_generation');
+
+        Process::assertRan(fn ($process) => $process->environment['CLAUDE_CODE_USE_BEDROCK'] === '1'
+            && $process->environment['AWS_REGION'] === 'eu-west-1'
+            && ! array_key_exists('ANTHROPIC_API_KEY', array_filter($process->environment))
+            && $process->command[array_search('--model', $process->command, true) + 1] === 'bedrock-model-id');
+    }
+
+    public function test_credentials_the_agent_prints_never_reach_the_transcript_or_error_output(): void
+    {
+        config(['boschifai.github_mcp.pat' => 'ghp_pushtoken123', 'boschifai.github_mcp.config_path' => '/etc/mcp.json']);
+        $output = json_encode(['type' => 'user', 'message' => ['content' => [['type' => 'tool_result', 'content' => "ANTHROPIC_API_KEY=sk-ant-real-key-9\nGITHUB_PERSONAL_ACCESS_TOKEN=ghp_pushtoken123"]]]])."\n"
+            .json_encode(['type' => 'result', 'subtype' => 'success', 'total_cost_usd' => 0.1, 'num_turns' => 1])."\n";
+        Process::fake(['*' => Process::result(output: $output, errorOutput: 'auth failed for sk-ant-real-key-9')]);
+        $transcript = $this->dir.'/t.jsonl';
+
+        $result = $this->invoker()->invoke($this->dir, 'push', $transcript, 60, fn () => false, $this->credentials(['ANTHROPIC_API_KEY' => 'sk-ant-real-key-9'], ['sk-ant-real-key-9']), 'push');
+
+        $stored = File::get($transcript);
+        $this->assertStringNotContainsString('sk-ant-real-key-9', $stored);
+        $this->assertStringNotContainsString('ghp_pushtoken123', $stored);
+        $this->assertStringContainsString('ANTHROPIC_API_KEY=[REDACTED]', $stored);
+        $this->assertSame('auth failed for [REDACTED]', trim($result->stderr));
+        // Still valid JSON lines, so the summary is parsed as before.
+        $this->assertSame(0.1, $result->totalCostUsd);
+    }
+
     public function test_only_the_push_step_gets_the_github_token_and_mcp_server_with_an_allowlist(): void
     {
         config(['boschifai.github_mcp.pat' => 'ghp_test', 'boschifai.github_mcp.config_path' => '/etc/mcp.json']);
         Process::fake();
 
-        $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, 'code_generation');
-        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, 'push');
+        $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, $this->credentials(), 'code_generation');
+        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, $this->credentials(), 'push');
 
         // Every other step's agent never sees the push credential or the GitHub MCP server.
         Process::assertRan(fn ($process) => in_array('gen', $process->command, true)
@@ -166,7 +207,7 @@ class HeadlessClaudeInvokerTest extends TestCase
         $this->swapInvokedProcess([true], fn () => $this->fakeResult(143), expectStop: true);
         $transcript = $this->dir.'/t.jsonl';
 
-        $result = $this->invoker()->invoke($this->dir, 'slow', $transcript, 0, fn () => false);
+        $result = $this->invoker()->invoke($this->dir, 'slow', $transcript, 0, fn () => false, $this->credentials());
 
         $this->assertTrue($result->timedOut);
         $this->assertFalse($result->cancelled);
@@ -181,7 +222,7 @@ class HeadlessClaudeInvokerTest extends TestCase
     {
         $this->swapInvokedProcess([true], fn () => $this->fakeResult(143), expectStop: true);
 
-        $result = $this->invoker()->invoke($this->dir, 'cancel me', $this->dir.'/t.jsonl', 600, fn () => true);
+        $result = $this->invoker()->invoke($this->dir, 'cancel me', $this->dir.'/t.jsonl', 600, fn () => true, $this->credentials());
 
         $this->assertTrue($result->cancelled);
         $this->assertFalse($result->timedOut);
@@ -199,7 +240,7 @@ class HeadlessClaudeInvokerTest extends TestCase
             );
         }, expectStop: false);
 
-        $result = $this->invoker()->invoke($this->dir, 'x', $this->dir.'/t.jsonl', 600, fn () => false);
+        $result = $this->invoker()->invoke($this->dir, 'x', $this->dir.'/t.jsonl', 600, fn () => false, $this->credentials());
 
         $this->assertTrue($result->timedOut);
         $this->assertSame(-1, $result->exitCode);
@@ -215,7 +256,7 @@ class HeadlessClaudeInvokerTest extends TestCase
             $checks++;
 
             return false;
-        });
+        }, $this->credentials());
 
         $this->assertSame(1, $checks);
         $this->assertSame(3, $result->exitCode);
@@ -239,7 +280,7 @@ class HeadlessClaudeInvokerTest extends TestCase
         config(['boschifai.github_mcp.pat' => 'ghp_test', 'boschifai.features.github_mcp_push' => false]);
         Process::fake();
 
-        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, 'push');
+        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, $this->credentials(), 'push');
 
         Process::assertRan(fn ($process) => ! in_array('--mcp-config', $process->command, true)
             && ! in_array('ghp_test', $process->environment, true));

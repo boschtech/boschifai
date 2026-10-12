@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ClaudeBillingMode;
+use App\Enums\ClaudeCredentialSource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,12 +24,17 @@ class ClaudeInvocation extends Model
         'cache_read_input_tokens',
         'stop_reason',
         'timed_out',
+        'billing_mode',
+        'credential_source',
+        'model',
     ];
 
     protected function casts(): array
     {
         return [
             'timed_out' => 'boolean',
+            'billing_mode' => ClaudeBillingMode::class,
+            'credential_source' => ClaudeCredentialSource::class,
             'total_cost_usd' => 'decimal:4',
             'input_tokens' => 'integer',
             'output_tokens' => 'integer',

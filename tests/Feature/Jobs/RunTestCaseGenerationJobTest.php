@@ -12,6 +12,7 @@ use App\Models\Run;
 use App\Models\RunArtifact;
 use App\Models\RunStep;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
+use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -195,7 +196,7 @@ class RunTestCaseGenerationJobTest extends TestCase
         {
             public function __construct(private Run $run) {}
 
-            public function invoke(string $worktreePath, string $prompt, string $transcriptPath, int $timeoutSeconds, callable $isCancelled, ?string $stepKey = null): ClaudeInvocationResult
+            public function invoke(string $worktreePath, string $prompt, string $transcriptPath, int $timeoutSeconds, callable $isCancelled, ResolvedClaudeCredentials $credentials, ?string $stepKey = null): ClaudeInvocationResult
             {
                 $this->run->update(['cancel_requested_at' => now()]);
 

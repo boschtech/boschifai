@@ -1,6 +1,6 @@
 ---
 name: boschifai-gen-storybook
-description: "Storybook story generation rules for component libraries using CSF3, play functions, and visual regression. Examples below use @crbn/ui (Emirates Carbon) as a reference — replace <component-library> tokens with your actual library."
+description: "Storybook story generation rules for component libraries using CSF3, play functions, and visual regression. Replace <component-library> tokens with your actual library."
 ---
 
 # Storybook Test Generation — Component Library
@@ -54,8 +54,6 @@ The sidebar is filtered by `tags`. Define design systems / audiences via tags:
 
 - **Hierarchy pattern**: `<CATEGORY>/<SubCategory>/<ComponentName>`
 - **All new stories MUST include `tags: ['autodocs', '<system-tag>']`.**
-
-For Emirates Carbon (`@crbn/ui`): `tags: ['autodocs', 'carbon']`, title prefix `ATOMS/<Category>/...`
 
 ---
 
@@ -293,10 +291,6 @@ parameters: {
 }
 ```
 
-For Emirates Carbon (`@crbn/ui`):
-- Import `BADGES` from `@crbn/addon/constants` — use `BADGES.BETA`, `BADGES.STABLE`, or `BADGES.CRITICAL`
-- `version: process.env.CRBN_UI`
-
 ---
 
 ## Design Token Usage in Stories
@@ -309,8 +303,6 @@ Use design system utility classes — never raw hex values in stories.
 | Typography | `type-<scale>-<weight>` | Design system type scale |
 | Spacing | Standard utility spacing | e.g. Tailwind spacing |
 | Dark mode | Use `backgrounds` parameter with dark value | Avoid `dark:` utility variants in stories |
-
-For Emirates Carbon: classes from `@crbn/tailwind-preset` (`text-ekred`, `text-txt`, `bg-surfacesunken`, etc.); CSS bundles: `carbon-theme.css`, `dnata-theme.css`.
 
 ---
 

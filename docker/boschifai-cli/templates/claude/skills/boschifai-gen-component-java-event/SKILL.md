@@ -487,7 +487,7 @@ service.eventTypeConfig.eventConsumerConfiguration:
     eventTypes: [<YOUR_EVENT_TYPE>]
     inputQueueName: <dataCenterName>.<environmentName>.<pillarName>.<service>.V1
     inputTopicName: <topic-pattern>
-    mandatoryHeaders: [EK-Correlation-Id, EK-Channel-Name, EK_Event_Type, APP_CODE]
+    mandatoryHeaders: [X-Correlation-Id, X-Channel-Name, X-Event-Type, APP_CODE]
     errorQueueName: <dataCenterName>.<environmentName>.<pillarName>.<service>.V1.ERROR
 
 TestProperties:

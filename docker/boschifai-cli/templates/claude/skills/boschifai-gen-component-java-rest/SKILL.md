@@ -294,7 +294,7 @@ external-service:
 logging:
   level:
     root: WARN
-    com.emirates: DEBUG
+    com.example: DEBUG
 ```
 
 ## CI Integration

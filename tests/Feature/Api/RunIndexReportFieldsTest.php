@@ -23,7 +23,7 @@ class RunIndexReportFieldsTest extends TestCase
 
     public function test_the_runs_list_exposes_confidence_coverage_and_execution_fields(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -69,7 +69,7 @@ class RunIndexReportFieldsTest extends TestCase
 
     public function test_fields_with_no_data_yet_degrade_to_null_rather_than_erroring(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import auth from '@/store/modules/auth';
-import { apiError, mockApi } from '../helpers';
+import { apiError, mockApi, signedInUser } from '../helpers';
 
 const USER = { id: 1, name: 'Ops Admin', email: 'ops@example.com' };
 
@@ -85,5 +85,30 @@ describe('auth store', () => {
         window.axios.put = vi.fn(() => Promise.resolve({ data: {} }));
         await auth.actions.changePassword(context(), { current_password: 'a' });
         expect(window.axios.put).toHaveBeenCalledWith('/user/password', { current_password: 'a' });
+    });
+
+    it('exposes the current workspace, the user’s workspaces and whether they can manage it', () => {
+        const state = JSON.parse(JSON.stringify(auth.state));
+        expect(auth.getters.canManage(state)).toBe(false);
+        expect(auth.getters.workspaces(state)).toEqual([]);
+        expect(auth.getters.currentWorkspace(state)).toBeNull();
+
+        auth.mutations.SET_USER(state, signedInUser({ canManage: true }));
+        expect(auth.getters.currentWorkspace(state).name).toBe('Acme');
+        expect(auth.getters.workspaces(state)).toHaveLength(2);
+        expect(auth.getters.canManage(state)).toBe(true);
+
+        auth.mutations.SET_USER(state, signedInUser({ canManage: false }));
+        expect(auth.getters.canManage(state)).toBe(false);
+    });
+
+    it('switchWorkspace stores the user as the server returns them after the switch', async () => {
+        const after = signedInUser();
+        mockApi({ 'POST /api/workspaces/20/switch': { data: after } });
+        const ctx = context();
+
+        await auth.actions.switchWorkspace(ctx, 20);
+
+        expect(ctx.commit).toHaveBeenCalledWith('SET_USER', after);
     });
 });

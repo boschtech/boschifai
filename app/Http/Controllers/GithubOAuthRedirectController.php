@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\Github\GithubOAuthService;
+use App\Support\CurrentWorkspace;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -17,7 +19,7 @@ use Illuminate\Support\Str;
  */
 class GithubOAuthRedirectController extends Controller
 {
-    public function __invoke(GithubOAuthService $githubAuth)
+    public function __invoke(Request $request, GithubOAuthService $githubAuth, CurrentWorkspace $currentWorkspace)
     {
         abort_unless(
             config('boschifai.github.oauth_client_id'),
@@ -26,7 +28,13 @@ class GithubOAuthRedirectController extends Controller
         );
 
         $state = Str::random(40);
-        Cache::put("github:oauth_state:{$state}", true, now()->addMinutes(10));
+        // The connection is added to the workspace the admin was in when they started — checked
+        // again on the way back, so a link can't be completed by someone else or into another
+        // workspace.
+        Cache::put("github:oauth_state:{$state}", [
+            'user_id' => $request->user()->id,
+            'workspace_id' => $currentWorkspace->id(),
+        ], now()->addMinutes(10));
 
         return redirect()->away($githubAuth->authorizeUrl($state));
     }

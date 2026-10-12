@@ -98,10 +98,10 @@ class GithubOAuthServiceTest extends TestCase
 
     public function test_token_for_returns_the_connected_accounts_decrypted_token(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_realtoken',
         ]);
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'octocat/backend',
             'git_remote_path' => 'https://github.com/octocat/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id,
@@ -117,7 +117,7 @@ class GithubOAuthServiceTest extends TestCase
 
     public function test_token_for_throws_a_clear_error_when_the_repo_has_no_github_connection(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'Backend',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'main',
         ]);

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import App from '@/App.vue';
+import WorkspaceSwitcher from '@/components/WorkspaceSwitcher.vue';
 import SidebarNav from '@/components/SidebarNav.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
 import TokenUsageBadge from '@/components/TokenUsageBadge.vue';
@@ -11,7 +12,7 @@ import usage from '@/store/modules/usage';
 import auth from '@/store/modules/auth';
 import runs from '@/store/modules/runs';
 import repoConfigs from '@/store/modules/repoConfigs';
-import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi } from '../helpers';
+import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi, signedInUser } from '../helpers';
 
 const USAGE = {
     month: 'October 2026', total_tokens: 515402, total_cost_usd: 0.5612,
@@ -106,6 +107,8 @@ describe('App', () => {
             modules: { usage, auth },
             stubs: { 'router-view': { template: '<div class="page">page content</div>' } },
         });
+        wrapper.vm.$store.commit('auth/SET_USER', signedInUser());
+        await wrapper.vm.$nextTick();
 
         expect(wrapper.text()).toContain('BoschifAI');
         expect(wrapper.text()).toContain('515,402 tokens');
@@ -174,6 +177,71 @@ describe('App — sign-in state', () => {
         await flushPromises();
 
         expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('91px');
+    });
+});
+
+describe('App — workspace and role', () => {
+    it('hides Connect Repo from members', async () => {
+        const { store } = await mountWith(App, { api: { 'GET /api/usage/tokens-this-month': USAGE }, modules: { usage, auth }, stubs: { 'router-view': true } });
+        store.commit('auth/SET_USER', signedInUser({ canManage: false }));
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.text()).not.toContain('Connect Repo');
+        expect(wrapper.find('#workspace-switcher').exists()).toBe(true);
+    });
+});
+
+describe('WorkspaceSwitcher', () => {
+    async function mountSwitcher(user, api = {}) {
+        const reload = vi.fn();
+        const { store } = await mountWith(WorkspaceSwitcher, { api, modules: { auth }, propsData: { reload } });
+        store.commit('auth/SET_USER', user);
+        await wrapper.vm.$nextTick();
+
+        return { store, reload };
+    }
+
+    it('shows just the workspace name when the user has one workspace', async () => {
+        await mountSwitcher(signedInUser({ workspaces: [{ id: 10, name: 'Acme', role: 'admin' }] }));
+
+        expect(wrapper.find('select').exists()).toBe(false);
+        expect(wrapper.text()).toBe('Acme');
+    });
+
+    it('lists the user’s workspaces with the current one selected', async () => {
+        await mountSwitcher(signedInUser());
+
+        expect(wrapper.findAll('option').wrappers.map((o) => o.text())).toEqual(['Acme', 'Beta']);
+        expect(wrapper.find('select').element.value).toBe('10');
+    });
+
+    it('switches workspace and reloads the app so nothing from the old one lingers', async () => {
+        const switched = vi.fn(() => ({ data: { ...signedInUser(), current_workspace: { id: 20, name: 'Beta', role: 'member', can_manage: false } } }));
+        const { store, reload } = await mountSwitcher(signedInUser(), { 'POST /api/workspaces/20/switch': switched });
+
+        await wrapper.find('select').setValue('20');
+        await flushPromises();
+
+        expect(switched).toHaveBeenCalled();
+        expect(store.getters['auth/currentWorkspace'].name).toBe('Beta');
+        expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when the current workspace is picked again, and stays put if switching fails', async () => {
+        const { reload } = await mountSwitcher(signedInUser(), { 'POST /api/workspaces/20/switch': () => { throw apiError('nope'); } });
+
+        await wrapper.vm.switchTo(10);
+        expect(window.axios.post).not.toHaveBeenCalled();
+
+        await expect(wrapper.vm.switchTo(20)).rejects.toThrow();
+        expect(reload).not.toHaveBeenCalled();
+        expect(wrapper.find('select').attributes('disabled')).toBeUndefined();
+    });
+
+    it('renders nothing before the user is known', async () => {
+        await mountWith(WorkspaceSwitcher, { modules: { auth } });
+
+        expect(wrapper.html()).toBe('');
     });
 });
 

@@ -26,7 +26,7 @@ class RunLocalTestExecutionJobTest extends TestCase
 
     private function makeRun(array $attributes = []): Run
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => '/tmp/local-checkout', 'base_branch' => 'main',
         ]);

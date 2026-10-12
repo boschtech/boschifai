@@ -42,7 +42,7 @@ const routes = [
     { path: '/runs/new/coverage', name: 'runs.create.coverage', component: RunCreatePage, props: { runType: 'coverage' } },
     { path: '/runs/:id/edit', name: 'runs.edit', component: RunCreatePage, props: (route) => ({ editingRunId: route.params.id }) },
     { path: '/runs/:id', name: 'runs.show', component: RunShowPage, props: true },
-    { path: '/settings/github', name: 'settings.github', component: GithubSettingsPage },
+    { path: '/settings/github', name: 'settings.github', component: GithubSettingsPage, meta: { requiresManage: true } },
     { path: '/tools-requirement', name: 'tools.requirement', component: ToolsRequirementPage },
     // Standalone Actions section (SidebarNav) — a single Claude invocation against a picked
     // repo, no approval gate, no push (see RunStandaloneActionJob). Both routes share one form

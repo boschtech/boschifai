@@ -21,10 +21,10 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_repositories_lists_from_github_and_flags_already_connected_ones(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'octocat/backend',
             'git_remote_path' => 'https://github.com/octocat/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id, 'github_owner' => 'octocat',
@@ -45,7 +45,7 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_connect_repositories_creates_repo_configs(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
 
@@ -66,12 +66,12 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_connect_repositories_422s_on_a_name_collision_with_a_different_connection(): void
     {
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'RAMS-ish',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
 
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
 
@@ -84,20 +84,20 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_exclude_organization_deletes_its_repo_configs_and_hides_it_from_future_listings(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id, 'github_owner' => 'acme',
         ]);
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'frontend', 'display_name' => 'acme/frontend',
             'git_remote_path' => 'https://github.com/acme/frontend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id, 'github_owner' => 'acme',
         ]);
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'unrelated', 'display_name' => 'octocat/unrelated',
             'git_remote_path' => 'https://github.com/octocat/unrelated.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id, 'github_owner' => 'octocat',
@@ -115,7 +115,7 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_repositories_omits_excluded_organizations_entirely(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
         $connection->excludedOrganizations()->create(['organization_login' => 'acme']);
@@ -136,7 +136,7 @@ class GithubConnectionControllerTest extends TestCase
 
     public function test_restore_organization_makes_it_reappear(): void
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'octocat', 'access_token' => 'gho_faketoken',
         ]);
         $connection->excludedOrganizations()->create(['organization_login' => 'acme']);

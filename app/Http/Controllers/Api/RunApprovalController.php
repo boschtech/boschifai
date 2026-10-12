@@ -15,6 +15,7 @@ use App\Jobs\RunCodeGenerationJob;
 use App\Jobs\RunGapAnalysisJob;
 use App\Jobs\RunTestCaseGenerationJob;
 use App\Models\Run;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
@@ -44,7 +45,8 @@ class RunApprovalController extends Controller
         $run->approvals()->create([
             'gate' => ApprovalGate::GapAnalysis,
             'decision' => $decision,
-            'approved_by' => $request->user()?->email ?? $request->ip(),
+            'approved_by' => $request->user()->email,
+            'approved_by_user_id' => $request->user()->id,
             'comment' => $request->validated('comment'),
             'approved_artifact_hash' => $hash,
             'decided_at' => now(),
@@ -62,7 +64,7 @@ class RunApprovalController extends Controller
                 RunTestCaseGenerationJob::dispatch($run->id);
             }
         } elseif ($decision === 'changes_requested') {
-            $this->startRevisedRun($run, $request->validated('comment'), $request->user()?->email ?? $request->ip());
+            $this->startRevisedRun($run, $request->validated('comment'), $request->user());
         } else {
             $run->update([
                 'state' => RunState::GapAnalysisRejected,
@@ -85,7 +87,7 @@ class RunApprovalController extends Controller
      * The feedback is appended to the requirement text itself, so every Gate 1 step (review
      * and test plan / codebase analysis and test design) reads it from the same input file.
      */
-    private function startRevisedRun(Run $run, string $comment, ?string $requestedBy): Run
+    private function startRevisedRun(Run $run, string $comment, User $requestedBy): Run
     {
         $revised = DB::transaction(function () use ($run, $comment, $requestedBy) {
             // Closed first so the repo's one-active-run slot (RunController::store) is free.
@@ -104,7 +106,8 @@ class RunApprovalController extends Controller
                 'attachment_filenames' => $run->attachment_filenames ?? [],
                 'previous_run_id' => $run->id,
                 'state' => RunState::Draft,
-                'created_by' => $requestedBy,
+                'created_by' => $requestedBy->email,
+                'created_by_user_id' => $requestedBy->id,
             ]);
         });
 
@@ -132,7 +135,8 @@ class RunApprovalController extends Controller
         $run->approvals()->create([
             'gate' => ApprovalGate::PrePush,
             'decision' => $decision,
-            'approved_by' => $request->user()?->email ?? $request->ip(),
+            'approved_by' => $request->user()->email,
+            'approved_by_user_id' => $request->user()->id,
             'comment' => $request->validated('comment'),
             'approved_artifact_hash' => $hash,
             'decided_at' => now(),

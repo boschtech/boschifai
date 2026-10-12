@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\RunType;
+use App\Support\CurrentWorkspace;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,7 +33,7 @@ class StoreRunRequest extends FormRequest
             'target_file_path' => ['nullable', 'string', 'max:500'],
             // Which RepoConfig this run targets — no longer implicitly hardcoded to "rams"
             // now that repos can be connected via the GitHub App flow.
-            'repo_config_id' => ['required', 'integer', 'exists:repo_configs,id'],
+            'repo_config_id' => ['required', 'integer', Rule::exists('repo_configs', 'id')->where('workspace_id', app(CurrentWorkspace::class)->id())],
             // Optional supporting files uploaded straight from the user's own machine (a spec
             // doc, a screenshot, a sample payload) — copied into the checkout as extra context
             // for the AI (see RunGapAnalysisJob), not run through validation for content type,

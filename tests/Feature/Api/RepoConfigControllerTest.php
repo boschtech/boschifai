@@ -14,11 +14,11 @@ class RepoConfigControllerTest extends TestCase
 
     public function test_index_lists_repo_configs_with_the_fields_the_frontend_needs(): void
     {
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);
@@ -32,7 +32,7 @@ class RepoConfigControllerTest extends TestCase
 
     public function test_destroy_removes_a_repo_config_with_no_runs(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);
@@ -44,7 +44,7 @@ class RepoConfigControllerTest extends TestCase
 
     public function test_destroy_is_blocked_when_runs_reference_the_repo_config(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);

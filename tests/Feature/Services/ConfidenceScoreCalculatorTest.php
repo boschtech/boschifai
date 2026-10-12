@@ -18,7 +18,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
     {
         // Weights per config/boschifai.php and plan §7: testability 25, test_case_quality 20,
         // local_execution 25, ci 30.
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -53,7 +53,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
 
     public function test_ci_failure_zeroes_that_component_even_with_everything_else_perfect(): void
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
@@ -91,7 +91,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
         // At Gate 2 there's no CI result yet (nothing has been pushed) — calculatePrePush()
         // drops the ci component and renormalizes 25/20/25 up to sum-to-100, rather than
         // scoring the missing signal 0 the way calculate() does.
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);

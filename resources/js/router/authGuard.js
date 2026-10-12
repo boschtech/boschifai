@@ -1,6 +1,8 @@
 /**
  * Pages need a signed-in user unless their route is marked `meta: { guest: true }` (login,
- * forgot/reset password). Signed-in users visiting a guest page go home instead.
+ * forgot/reset password). Signed-in users visiting a guest page go home instead. Routes marked
+ * `meta: { requiresManage: true }` are for workspace admins and owners — the API refuses
+ * members anyway; this just keeps them off a page they can't use.
  */
 export function createAuthGuard(store) {
     return async (to, _from, next) => {
@@ -16,6 +18,10 @@ export function createAuthGuard(store) {
 
         if (!signedIn) {
             return next({ name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } });
+        }
+
+        if (to.meta.requiresManage && !store.getters['auth/canManage']) {
+            return next({ name: 'home' });
         }
 
         return next();

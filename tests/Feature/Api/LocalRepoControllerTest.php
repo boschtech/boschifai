@@ -43,7 +43,7 @@ class LocalRepoControllerTest extends TestCase
 
     public function test_browse_lists_only_visible_directories_sorted_with_git_and_connection_flags(): void
     {
-        $connected = RepoConfig::create([
+        $connected = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'alpha', 'display_name' => 'alpha',
             'git_remote_path' => $this->root.'/alpha', 'base_branch' => 'main',
         ]);
@@ -150,7 +150,7 @@ class LocalRepoControllerTest extends TestCase
     public function test_connect_rejects_a_name_clash_with_a_repo_connected_from_elsewhere(): void
     {
         Process::fake();
-        RepoConfig::create([
+        RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'alpha', 'display_name' => 'acme/alpha',
             'git_remote_path' => 'https://github.com/acme/alpha.git', 'base_branch' => 'main',
         ]);

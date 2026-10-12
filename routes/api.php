@@ -7,16 +7,19 @@ use App\Http\Controllers\Api\RepoConfigController;
 use App\Http\Controllers\Api\RunApprovalController;
 use App\Http\Controllers\Api\RunController;
 use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\WorkspaceSwitchController;
 use Illuminate\Support\Facades\Route;
 
-// Every API route requires a signed-in user (Sanctum session — see bootstrap/app.php).
-Route::middleware('auth:sanctum')->group(function () {
+// Every API route requires a signed-in user (Sanctum session — see bootstrap/app.php) who belongs
+// to a workspace; all data is scoped to their current workspace (see BelongsToWorkspace).
+Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     Route::get('/me', MeController::class);
+    Route::post('/workspaces/{workspace}/switch', WorkspaceSwitchController::class);
 
+    // Day-to-day work: any member of the workspace.
     Route::get('/runs', [RunController::class, 'index']);
     Route::post('/runs', [RunController::class, 'store']);
     Route::get('/runs/{run}', [RunController::class, 'show']);
-    Route::delete('/runs/{run}', [RunController::class, 'destroy']);
     Route::get('/runs/{run}/activity', [RunController::class, 'activity']);
     Route::post('/runs/{run}/steps/{step}/retry', [RunController::class, 'retryStep']);
     Route::post('/runs/{run}/local-execution/rerun', [RunController::class, 'rerunLocalExecution']);
@@ -31,17 +34,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/repo-configs', [RepoConfigController::class, 'index']);
     Route::get('/repo-configs/{repoConfig}/browse-files', [RepoConfigController::class, 'browseFiles']);
-    Route::delete('/repo-configs/{repoConfig}', [RepoConfigController::class, 'destroy']);
-
-    Route::get('/github/connections', [GithubConnectionController::class, 'connections']);
-    Route::get('/github/connections/{connection}/repositories', [GithubConnectionController::class, 'repositories']);
-    Route::post('/github/connections/{connection}/repositories', [GithubConnectionController::class, 'connectRepositories']);
-    Route::delete('/github/connections/{connection}/organizations/{organization}', [GithubConnectionController::class, 'excludeOrganization']);
-    Route::post('/github/connections/{connection}/organizations/{organization}/restore', [GithubConnectionController::class, 'restoreOrganization']);
-
-    Route::get('/local-repos/browse', [LocalRepoController::class, 'browse']);
-    Route::post('/local-repos/connect', [LocalRepoController::class, 'connect']);
 
     Route::get('/usage/tokens-this-month', [UsageController::class, 'tokensThisMonth']);
     Route::get('/usage/tokens-this-month/details', [UsageController::class, 'tokensThisMonthDetails']);
+
+    // Managing the workspace's repositories and GitHub connections: admins and owners only.
+    Route::middleware('workspace.manage')->group(function () {
+        Route::delete('/runs/{run}', [RunController::class, 'destroy']);
+        Route::delete('/repo-configs/{repoConfig}', [RepoConfigController::class, 'destroy']);
+
+        Route::get('/github/connections', [GithubConnectionController::class, 'connections']);
+        Route::get('/github/connections/{connection}/repositories', [GithubConnectionController::class, 'repositories']);
+        Route::post('/github/connections/{connection}/repositories', [GithubConnectionController::class, 'connectRepositories']);
+        Route::delete('/github/connections/{connection}/organizations/{organization}', [GithubConnectionController::class, 'excludeOrganization']);
+        Route::post('/github/connections/{connection}/organizations/{organization}/restore', [GithubConnectionController::class, 'restoreOrganization']);
+
+        Route::get('/local-repos/browse', [LocalRepoController::class, 'browse']);
+        Route::post('/local-repos/connect', [LocalRepoController::class, 'connect']);
+    });
 });

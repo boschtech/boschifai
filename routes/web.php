@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Route;
 
 // Must be registered above the SPA catch-all below — GitHub does a real full-browser
 // navigation here, which the catch-all would otherwise swallow and render the SPA shell for.
-Route::middleware('auth')->group(function () {
+// Connecting a GitHub account adds it to the current workspace, so it's for workspace admins.
+Route::middleware(['auth', 'workspace', 'workspace.manage'])->group(function () {
     Route::get('/github/authorize', GithubOAuthRedirectController::class)->name('github.authorize');
     Route::get('/github/callback', GithubOAuthCallbackController::class)->name('github.callback');
 });

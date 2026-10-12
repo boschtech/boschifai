@@ -42,7 +42,7 @@ class RunGapAnalysisAttachmentsTest extends TestCase
         Queue::fake([RunTestPlanJob::class]);
         Process::fake(fn () => Process::result());
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => $this->checkoutPath, 'base_branch' => 'main',
         ]);
@@ -85,7 +85,7 @@ class RunGapAnalysisAttachmentsTest extends TestCase
         Queue::fake([RunTestPlanJob::class]);
         Process::fake(fn () => Process::result());
 
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => $this->checkoutPath, 'base_branch' => 'main',
         ]);

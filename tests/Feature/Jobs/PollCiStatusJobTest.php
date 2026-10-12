@@ -25,10 +25,10 @@ class PollCiStatusJobTest extends TestCase
 
     private function makeRun(array $attributes = []): Run
     {
-        $connection = GithubConnection::create([
+        $connection = GithubConnection::create(['workspace_id' => $this->workspace()->id,
             'github_user_id' => 1, 'github_login' => 'acme', 'access_token' => 'gho_test',
         ]);
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
             'github_connection_id' => $connection->id, 'github_owner' => 'acme',

@@ -16,7 +16,7 @@ class RunArchiveTest extends TestCase
 
     private function makeRepo(): RepoConfig
     {
-        return RepoConfig::create([
+        return RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'rams', 'display_name' => 'RAMS',
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);

@@ -43,7 +43,7 @@ class RunFixFailingTestsJobTest extends TestCase
 
     private function makeRun(): Run
     {
-        $repo = RepoConfig::create([
+        $repo = RepoConfig::create(['workspace_id' => $this->workspace()->id,
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => $this->checkoutPath, 'base_branch' => 'main',
         ]);

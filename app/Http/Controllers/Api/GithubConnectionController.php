@@ -10,13 +10,14 @@ use App\Models\ExcludedGithubOrganization;
 use App\Models\GithubConnection;
 use App\Models\RepoConfig;
 use App\Services\Github\GithubOAuthService;
+use App\Support\CurrentWorkspace;
 
 class GithubConnectionController extends Controller
 {
     public function connections()
     {
         return GithubConnectionResource::collection(
-            GithubConnection::withCount('repoConfigs')->latest()->get()
+            GithubConnection::forWorkspace(app(CurrentWorkspace::class)->id())->withCount('repoConfigs')->latest()->get()
         );
     }
 
@@ -87,15 +88,15 @@ class GithubConnectionController extends Controller
             // Also blocks colliding with a pre-existing, non-GitHub RepoConfig — silently
             // repointing some other row's git_remote_path at a GitHub clone URL would break
             // whatever that row was already being used for.
-            $existing = RepoConfig::where('name', $name)->first();
+            $existing = RepoConfig::forWorkspace($connection->workspace_id)->where('name', $name)->first();
             abort_if(
                 $existing && $existing->github_connection_id !== $connection->id,
                 422,
-                "A repository named '{$name}' is already connected to Boschifai from elsewhere — rename one before connecting both."
+                "A repository named '{$name}' is already connected to this workspace from elsewhere — rename one before connecting both."
             );
 
             RepoConfig::updateOrCreate(
-                ['name' => $name],
+                ['workspace_id' => $connection->workspace_id, 'name' => $name],
                 [
                     'display_name' => $repo['full_name'],
                     'git_remote_path' => "https://github.com/{$owner}/{$name}.git",

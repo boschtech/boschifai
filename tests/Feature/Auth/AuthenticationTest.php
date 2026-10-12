@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\WorkspaceRole;
 use App\Http\Responses\NeutralPasswordResetLinkResponse;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -20,10 +21,13 @@ class AuthenticationTest extends TestCase
 
     private function user(): User
     {
-        return User::create([
+        $user = User::create([
             'name' => 'Ops Admin', 'email' => 'ops@example.com',
             'password' => self::PASSWORD, 'email_verified_at' => now(),
         ]);
+        $this->workspace()->addMember($user, WorkspaceRole::Owner);
+
+        return $user;
     }
 
     /** Requests from the SPA carry its origin; Sanctum only treats those as session (cookie) requests. */
@@ -57,7 +61,8 @@ class AuthenticationTest extends TestCase
 
         $this->fromSpa()->getJson('/api/me')
             ->assertOk()
-            ->assertExactJson(['data' => ['id' => 1, 'name' => 'Ops Admin', 'email' => 'ops@example.com']]);
+            ->assertJsonPath('data.email', 'ops@example.com')
+            ->assertJsonPath('data.name', 'Ops Admin');
 
         $this->fromSpa()->postJson('/logout')->assertNoContent();
         $this->assertGuest('web');

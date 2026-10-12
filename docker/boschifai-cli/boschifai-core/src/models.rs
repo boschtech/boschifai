@@ -99,3 +99,91 @@ impl JiraIssueSource {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_step_accepts_a_plain_string() {
+        let step: TestStep = serde_json::from_value(json!("Open the refunds page")).unwrap();
+
+        assert!(matches!(step, TestStep::Simple(ref s) if s == "Open the refunds page"));
+    }
+
+    #[test]
+    fn test_step_accepts_a_detailed_object_with_camel_case_fields() {
+        let step: TestStep = serde_json::from_value(json!({
+            "stepDetails": "Submit a refund",
+            "testData": "amount=10",
+            "expectedResult": "Refund created"
+        }))
+        .unwrap();
+
+        match step {
+            TestStep::Detailed {
+                step_details,
+                test_data,
+                expected_result,
+            } => {
+                assert_eq!(step_details, "Submit a refund");
+                assert_eq!(test_data.as_deref(), Some("amount=10"));
+                assert_eq!(expected_result.as_deref(), Some("Refund created"));
+            }
+            other => panic!("expected a detailed step, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn detailed_step_omits_missing_optional_fields_when_serialized() {
+        let step = TestStep::Detailed {
+            step_details: "Submit".into(),
+            test_data: None,
+            expected_result: None,
+        };
+
+        assert_eq!(
+            serde_json::to_value(step).unwrap(),
+            json!({ "stepDetails": "Submit" })
+        );
+    }
+
+    #[test]
+    fn test_case_round_trips_and_omits_unset_optional_fields() {
+        let input = json!({
+            "id": "TC-1",
+            "title": "Refund",
+            "steps": ["Given", { "stepDetails": "When" }],
+            "expected_result": "Then",
+            "priority": 2
+        });
+
+        let case: TestCase = serde_json::from_value(input.clone()).unwrap();
+
+        assert_eq!(case.priority, Some(2));
+        assert!(case.description.is_none());
+        assert_eq!(serde_json::to_value(&case).unwrap(), input);
+    }
+
+    #[test]
+    fn jira_issue_converts_to_a_requirement() {
+        let issue = JiraIssueSource {
+            key: "AIR-1".into(),
+            issue_type: "Story".into(),
+            summary: "Refunds".into(),
+            description: "As a user…".into(),
+            labels: vec![],
+            status: "Open".into(),
+            assignee: None,
+            story_points: None,
+            epic_link: None,
+        };
+
+        let requirement = issue.to_requirement();
+
+        assert_eq!(requirement.id, "AIR-1");
+        assert_eq!(requirement.title, "Refunds");
+        assert_eq!(requirement.description, "As a user…");
+    }
+}

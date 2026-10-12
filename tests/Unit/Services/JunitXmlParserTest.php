@@ -39,7 +39,7 @@ class JunitXmlParserTest extends TestCase
         </testsuites>
         XML);
 
-        $result = (new JunitXmlParser())->parse($this->xmlPath);
+        $result = (new JunitXmlParser)->parse($this->xmlPath);
 
         $this->assertSame(3, $result['total']);
         $this->assertSame(1, $result['passed']);

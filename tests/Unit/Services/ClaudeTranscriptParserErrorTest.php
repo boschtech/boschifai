@@ -17,7 +17,7 @@ class ClaudeTranscriptParserErrorTest extends TestCase
         file_put_contents($path, json_encode(['type' => 'assistant', 'message' => []])."\n".json_encode(['type' => 'result'] + $resultEvent)."\n");
 
         try {
-            return (new ClaudeTranscriptParser())->parseSummary($path);
+            return (new ClaudeTranscriptParser)->parseSummary($path);
         } finally {
             unlink($path);
         }

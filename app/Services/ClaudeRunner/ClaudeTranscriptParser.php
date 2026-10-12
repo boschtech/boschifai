@@ -110,14 +110,10 @@ class ClaudeTranscriptParser
     private function actionFor(string $message, mixed $status): ?string
     {
         return match (true) {
-            (bool) preg_match('/credit balance is too low/i', $message) =>
-                'The Anthropic API account used by BoschifAI has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step.',
-            $status === 401 || (bool) preg_match('/invalid (x-)?api[ -]?key|authentication/i', $message) =>
-                'The Anthropic API key configured for BoschifAI was rejected. Ask an admin to check ANTHROPIC_API_KEY, then press Retry step.',
-            $status === 429 || (bool) preg_match('/rate limit/i', $message) =>
-                'The Anthropic API rate limit was hit. Wait a few minutes, then press Retry step.',
-            $status === 529 || (bool) preg_match('/overloaded/i', $message) =>
-                'The Anthropic API is temporarily overloaded. Wait a few minutes, then press Retry step.',
+            (bool) preg_match('/credit balance is too low/i', $message) => 'The Anthropic API account used by BoschifAI has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step.',
+            $status === 401 || (bool) preg_match('/invalid (x-)?api[ -]?key|authentication/i', $message) => 'The Anthropic API key configured for BoschifAI was rejected. Ask an admin to check ANTHROPIC_API_KEY, then press Retry step.',
+            $status === 429 || (bool) preg_match('/rate limit/i', $message) => 'The Anthropic API rate limit was hit. Wait a few minutes, then press Retry step.',
+            $status === 529 || (bool) preg_match('/overloaded/i', $message) => 'The Anthropic API is temporarily overloaded. Wait a few minutes, then press Retry step.',
             default => null,
         };
     }

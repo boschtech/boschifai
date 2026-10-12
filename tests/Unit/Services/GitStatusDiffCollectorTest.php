@@ -13,7 +13,7 @@ class GitStatusDiffCollectorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->collector = new GitStatusDiffCollector();
+        $this->collector = new GitStatusDiffCollector;
     }
 
     public function test_new_paths_only_returns_paths_absent_from_before(): void

@@ -51,7 +51,7 @@ Monday.com items rarely have Jira's structured "Acceptance Criteria" field — a
 2. **Bulleted or numbered lists in the description** — treat each as a candidate AC
 3. **Checklist-style sub-items or a checklist column** — each checked/unchecked item is a candidate AC
 4. **Rules/constraints stated in prose** — extract as individual requirements (REQ-NNN)
-5. **Linked docs, Figma links, or attached files** — flag as a dependency; fetch via `read_docs` if it's a Monday Doc, otherwise note it as an external reference the reviewer should open manually
+5. **Linked docs, design links, or attached files** — flag as a dependency; fetch via `read_docs` if it's a Monday Doc, otherwise note it as an external reference the reviewer should open manually
 6. **Edge cases mentioned in updates/comments** — include as boundary/negative test scenarios, tagged with their source (item body vs. update thread)
 
 ## Traceability Chain

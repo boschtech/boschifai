@@ -12,8 +12,7 @@ class StepOutcome
     public function __construct(
         public readonly ClaudeInvocationResult $claudeResult,
         public readonly Collection $artifacts,
-    ) {
-    }
+    ) {}
 
     public function artifactOfKind(string $kind): ?RunArtifact
     {

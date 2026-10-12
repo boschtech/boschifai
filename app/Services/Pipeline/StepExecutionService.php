@@ -26,8 +26,7 @@ class StepExecutionService
         private HeadlessClaudeInvoker $invoker,
         private GitStatusDiffCollector $diffCollector,
         private CancellationChecker $cancellation,
-    ) {
-    }
+    ) {}
 
     public function run(Run $run, string $stepKey, string $prompt, int $timeoutSeconds): StepOutcome
     {

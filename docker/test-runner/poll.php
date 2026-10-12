@@ -27,7 +27,6 @@
  *   {run_id}.done.json  written by this poller       — {exit_code, cancelled, timed_out}, the
  *                                                       signal LocalTestRunner is waiting for
  */
-
 const JOBS_DIR = '/var/boschifai-jobs';
 const POLL_INTERVAL_SECONDS = 1;
 const CANCEL_CHECK_INTERVAL_SECONDS = 1.0;
@@ -125,7 +124,7 @@ function processOneJob(string $jobPath): void
     @unlink($cancelPath);
 }
 
-fwrite(STDOUT, "test-runner: polling ".JOBS_DIR." every ".POLL_INTERVAL_SECONDS."s\n");
+fwrite(STDOUT, 'test-runner: polling '.JOBS_DIR.' every '.POLL_INTERVAL_SECONDS."s\n");
 
 while (true) {
     foreach (glob(JOBS_DIR.'/*.job.json') ?: [] as $jobPath) {

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -333,7 +334,7 @@ class PushAndOpenPrJobTest extends TestCase
 
         // Simulate a previous failed attempt having already created (and left behind) this run's
         // own deterministic branch name.
-        $branchName = 'test/'.\Illuminate\Support\Str::slug(\Illuminate\Support\Str::limit('x', 40, ''));
+        $branchName = 'test/'.Str::slug(Str::limit('x', 40, ''));
         $this->git(['branch', $branchName]);
 
         app()->call([new PushAndOpenPrJob($run->id), 'handle']);
@@ -383,7 +384,7 @@ class PushAndOpenPrJobTest extends TestCase
 
         // Simulate the prior attempt's already-successful local commit — the branch already has
         // this run's own generated content, committed with its marker.
-        $branchName = 'test/'.\Illuminate\Support\Str::slug(\Illuminate\Support\Str::limit('x', 40, ''));
+        $branchName = 'test/'.Str::slug(Str::limit('x', 40, ''));
         $this->git(['checkout', '-b', $branchName]);
         File::put($this->repoPath.'/tests/Feature/BillingControllerTest.php', "<?php // generated content\n");
         $this->git(['add', 'tests/Feature/BillingControllerTest.php']);

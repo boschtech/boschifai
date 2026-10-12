@@ -24,7 +24,7 @@ class GithubOAuthServiceTest extends TestCase
 
     public function test_authorize_url_includes_the_client_id_repo_scope_and_state(): void
     {
-        $url = (new GithubOAuthService())->authorizeUrl('the-state-value');
+        $url = (new GithubOAuthService)->authorizeUrl('the-state-value');
 
         $this->assertStringStartsWith('https://github.com/login/oauth/authorize?', $url);
         $this->assertStringContainsString('client_id=client-123', $url);
@@ -38,7 +38,7 @@ class GithubOAuthServiceTest extends TestCase
 
         $this->expectExceptionMessage('GitHub OAuth App is not configured');
 
-        (new GithubOAuthService())->authorizeUrl('x');
+        (new GithubOAuthService)->authorizeUrl('x');
     }
 
     public function test_exchange_code_for_token_returns_the_access_token_on_success(): void
@@ -49,7 +49,7 @@ class GithubOAuthServiceTest extends TestCase
             ]),
         ]);
 
-        $token = (new GithubOAuthService())->exchangeCodeForToken('the-code');
+        $token = (new GithubOAuthService)->exchangeCodeForToken('the-code');
 
         $this->assertSame('gho_faketoken', $token['access_token']);
     }
@@ -65,7 +65,7 @@ class GithubOAuthServiceTest extends TestCase
 
         $this->expectExceptionMessage('The code passed is incorrect or expired.');
 
-        (new GithubOAuthService())->exchangeCodeForToken('stale-code');
+        (new GithubOAuthService)->exchangeCodeForToken('stale-code');
     }
 
     public function test_fetch_authenticated_user_returns_id_and_login(): void
@@ -74,7 +74,7 @@ class GithubOAuthServiceTest extends TestCase
             'api.github.com/user' => Http::response(['id' => 42, 'login' => 'octocat']),
         ]);
 
-        $user = (new GithubOAuthService())->fetchAuthenticatedUser('gho_faketoken');
+        $user = (new GithubOAuthService)->fetchAuthenticatedUser('gho_faketoken');
 
         $this->assertSame(42, $user['id']);
         $this->assertSame('octocat', $user['login']);
@@ -91,7 +91,7 @@ class GithubOAuthServiceTest extends TestCase
             ]),
         ]);
 
-        $repos = (new GithubOAuthService())->listUserRepositories('gho_faketoken');
+        $repos = (new GithubOAuthService)->listUserRepositories('gho_faketoken');
 
         $this->assertCount(101, $repos);
     }
@@ -107,7 +107,7 @@ class GithubOAuthServiceTest extends TestCase
             'github_connection_id' => $connection->id,
         ]);
 
-        $token = (new GithubOAuthService())->tokenFor($repo->fresh(['githubConnection']));
+        $token = (new GithubOAuthService)->tokenFor($repo->fresh(['githubConnection']));
 
         $this->assertSame('gho_realtoken', $token);
         // Confirms the encrypted cast round-trips correctly on a fresh read from the DB, not
@@ -124,6 +124,6 @@ class GithubOAuthServiceTest extends TestCase
 
         $this->expectExceptionMessage('has no GitHub account connected');
 
-        (new GithubOAuthService())->tokenFor($repo);
+        (new GithubOAuthService)->tokenFor($repo);
     }
 }

@@ -37,7 +37,7 @@ class CancellationCheckerTest extends TestCase
     public function test_is_requested_is_false_until_the_column_is_stamped(): void
     {
         $run = $this->makeRun();
-        $checker = new CancellationChecker();
+        $checker = new CancellationChecker;
 
         $this->assertFalse($checker->isRequested($run->id));
 
@@ -49,7 +49,7 @@ class CancellationCheckerTest extends TestCase
     public function test_is_requested_reads_fresh_from_the_database_not_a_stale_in_memory_model(): void
     {
         $run = $this->makeRun();
-        $checker = new CancellationChecker();
+        $checker = new CancellationChecker;
 
         // Simulate the real scenario this class exists for: a separate process (the HTTP
         // request handling "Stop") updates the row directly, without going through this
@@ -62,7 +62,7 @@ class CancellationCheckerTest extends TestCase
     public function test_mark_cancelled_sets_run_state_and_creates_a_cancelled_step_when_none_existed(): void
     {
         $run = $this->makeRun();
-        $checker = new CancellationChecker();
+        $checker = new CancellationChecker;
 
         $checker->markCancelled($run, 'gap_analysis', 'Cancelled by user before this step started.');
 
@@ -80,7 +80,7 @@ class CancellationCheckerTest extends TestCase
     public function test_mark_cancelled_preserves_the_real_started_at_for_a_step_already_in_flight(): void
     {
         $run = $this->makeRun();
-        $checker = new CancellationChecker();
+        $checker = new CancellationChecker;
 
         $realStart = now()->subMinutes(3);
         $run->steps()->create([

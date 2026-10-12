@@ -21,9 +21,7 @@ use RuntimeException;
  */
 class RunWorkspaceManager
 {
-    public function __construct(private RepoCheckoutManager $checkouts)
-    {
-    }
+    public function __construct(private RepoCheckoutManager $checkouts) {}
 
     public function path(Run $run): string
     {

@@ -50,7 +50,9 @@ pub async fn generate_tests_from_requirement(
                 TestStep::Simple("When invalid input is provided".to_string()),
                 TestStep::Simple("Then the system handles the error gracefully".to_string()),
             ],
-            expected_result: "An appropriate error message is displayed and the system remains stable".to_string(),
+            expected_result:
+                "An appropriate error message is displayed and the system remains stable"
+                    .to_string(),
             description: None,
             precondition: None,
             automation_type: None,

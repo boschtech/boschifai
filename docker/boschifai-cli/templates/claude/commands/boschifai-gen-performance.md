@@ -5,7 +5,7 @@ mode: agent
 
 # Generate Performance Tests
 
-Generate performance test scripts for the API endpoints or pages described in a file or GitLab repository.
+Generate performance test scripts for the API endpoints or pages described in a file.
 
 ## Input Sources
 
@@ -13,14 +13,10 @@ Generate performance test scripts for the API endpoints or pages described in a 
 |--------|---------|
 | **Current file** (default) | `/boschifai-gen-performance` with requirements or spec open in editor |
 | **Local file path** | `/boschifai-gen-performance --file api/payment-endpoints.yaml` |
-| **GitLab repo** | `/boschifai-gen-performance --repo-url https://gitlab.com/group/project` |
-| **GitLab repo + specific file** | `/boschifai-gen-performance --repo-url https://gitlab.com/group/project --repo-file api/payment-endpoints.yaml` |
-| **GitLab repo + branch** | `/boschifai-gen-performance --repo-url https://gitlab.com/group/project --repo-branch feature/my-branch` |
 
 ## Instructions
 
 0. **Detect the input source:**
-   - If `--repo-url` is provided: run `boschifai gen performance --repo-url <URL> [--repo-file <path>] [--repo-branch <branch>] --json` and parse the returned JSON context (fields: `tech_stack`, `source_files`, `test_files`, `file_tree`). Identify API endpoints from the repo (OpenAPI specs, REST controllers, route files). If `--repo-file` is given, target that spec; otherwise locate API definition files in the repo and ask the user which endpoints to load-test.
    - If `--file` or a local path is provided: read that file directly and proceed to step 1.
    - Otherwise: read the currently open file in the editor.
 

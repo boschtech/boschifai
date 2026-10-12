@@ -38,7 +38,7 @@ class PullRequestBodyConfidentialityTest extends TestCase
             'generated_file_path' => 'tests/Feature/CustomFieldControllerTest.php',
         ]);
 
-        $body = (new PullRequestService(new GithubOAuthService()))->buildBody($run);
+        $body = (new PullRequestService(new GithubOAuthService))->buildBody($run);
 
         $this->assertStringNotContainsString($secretLookingRequirementText, $body);
         $this->assertStringNotContainsString('8501015800080', $body);
@@ -69,7 +69,7 @@ class PullRequestBodyConfidentialityTest extends TestCase
             'generated_file_path' => 'ai/__tests__/modules/cicd-optimizer.test.ts',
         ]);
 
-        $body = (new PullRequestService(new GithubOAuthService()))->buildBody($run);
+        $body = (new PullRequestService(new GithubOAuthService))->buildBody($run);
 
         $this->assertStringNotContainsString('PHPUnit', $body);
         $this->assertStringNotContainsString('boschifai-gen-feature-php-laravel', $body);

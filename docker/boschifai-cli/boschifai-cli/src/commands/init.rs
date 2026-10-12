@@ -47,10 +47,19 @@ pub fn run_init(yes: bool, force: bool) -> anyhow::Result<()> {
     }
 
     let total_files: usize = manifest.categories.iter().map(|c| c.files.len()).sum();
-    println!("Boschifai {} — installing into {}", manifest.version, cwd.display());
+    println!(
+        "Boschifai {} — installing into {}",
+        manifest.version,
+        cwd.display()
+    );
     println!();
     for cat in &manifest.categories {
-        println!("  {} → {} ({} files)", cat.name, cat.target, cat.files.len());
+        println!(
+            "  {} → {} ({} files)",
+            cat.name,
+            cat.target,
+            cat.files.len()
+        );
     }
     println!();
     println!("Total: {} files", total_files);
@@ -86,7 +95,12 @@ pub fn run_init(yes: bool, force: bool) -> anyhow::Result<()> {
             }
 
             fs::copy(&src, &dst).map_err(|e| {
-                anyhow::anyhow!("Failed to copy {} → {}: {}", src.display(), dst.display(), e)
+                anyhow::anyhow!(
+                    "Failed to copy {} → {}: {}",
+                    src.display(),
+                    dst.display(),
+                    e
+                )
             })?;
             copied += 1;
         }
@@ -110,7 +124,9 @@ pub fn run_init(yes: bool, force: bool) -> anyhow::Result<()> {
 fn resolve_templates_dir() -> anyhow::Result<PathBuf> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| anyhow::anyhow!("Cannot determine home directory (HOME or USERPROFILE not set)"))?;
+        .map_err(|_| {
+            anyhow::anyhow!("Cannot determine home directory (HOME or USERPROFILE not set)")
+        })?;
     Ok(PathBuf::from(home).join(TEMPLATES_DIR))
 }
 

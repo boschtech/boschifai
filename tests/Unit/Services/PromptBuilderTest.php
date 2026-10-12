@@ -12,7 +12,7 @@ class PromptBuilderTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->prompts = new PromptBuilder();
+        $this->prompts = new PromptBuilder;
     }
 
     public function test_codebase_analysis_references_the_instruction_file_and_execution_recipe_placeholders(): void

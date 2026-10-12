@@ -23,8 +23,7 @@ class ClaudeInvocationResult
         // ClaudeTranscriptParser::resultErrorMessage) — API errors such as low credit land here,
         // not in $stderr.
         public readonly ?string $resultError = null,
-    ) {
-    }
+    ) {}
 
     public function succeeded(): bool
     {

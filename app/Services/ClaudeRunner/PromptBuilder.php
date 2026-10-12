@@ -24,7 +24,7 @@ class PromptBuilder
      * something `/boschifai-review`'s own file-reading logic needs to parse out of the
      * requirement text.
      *
-     * @param string[] $attachmentRelativePaths
+     * @param  string[]  $attachmentRelativePaths
      */
     private function attachmentsContextBlock(array $attachmentRelativePaths): string
     {
@@ -76,7 +76,7 @@ class PromptBuilder
     {
         $invocation = $targetFilePath !== ''
             ? "/boschifai-gen-component --file {$targetFilePath}"
-            : <<<TEXT
+            : <<<'TEXT'
             No target file was specified. First identify the single APPLICATION SOURCE file (the
             controller/service under test — never a test file) that these test cases exercise, then
             run /boschifai-gen-component with `--file` set to that path.
@@ -106,7 +106,7 @@ class PromptBuilder
      */
     private function generatedTestFileSentinelInstruction(): string
     {
-        return <<<TEXT
+        return <<<'TEXT'
         End your response with exactly one line in this literal format, naming the real path
         (relative to this directory) of the test file you just wrote or edited — even if a test
         file for this target already existed and you edited it rather than creating a new one:
@@ -238,7 +238,7 @@ class PromptBuilder
      * rather than a mistake in the test itself, the instruction below asks Claude to leave that
      * assertion alone and flag it, instead of silently forcing a green run.
      *
-     * @param array<int, array{name: string, status: string, message: ?string}> $failingTests
+     * @param  array<int, array{name: string, status: string, message: ?string}>  $failingTests
      */
     public function fixFailingTests(string $generatedFilePath, array $failingTests): string
     {

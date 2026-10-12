@@ -23,9 +23,7 @@ use RuntimeException;
  */
 class RepoCheckoutManager
 {
-    public function __construct(private GithubOAuthService $githubAuth)
-    {
-    }
+    public function __construct(private GithubOAuthService $githubAuth) {}
 
     public function path(RepoConfig $repo): string
     {

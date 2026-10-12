@@ -42,10 +42,7 @@ pub async fn generate(file_path: Option<&str>, jira_key: Option<&str>, json: boo
                         "Generating API test scenarios from Jira issue: {} ({})",
                         issue.key, issue.summary
                     );
-                    println!(
-                        "  Output: api_tests_{}.md",
-                        issue.key.to_lowercase()
-                    );
+                    println!("  Output: api_tests_{}.md", issue.key.to_lowercase());
                 }
             }
             Err(e) => {

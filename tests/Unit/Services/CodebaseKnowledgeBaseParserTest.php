@@ -12,12 +12,12 @@ class CodebaseKnowledgeBaseParserTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->parser = new CodebaseKnowledgeBaseParser();
+        $this->parser = new CodebaseKnowledgeBaseParser;
     }
 
     public function test_extracts_score_from_the_header_table_format(): void
     {
-        $markdown = <<<MD
+        $markdown = <<<'MD'
         # Codebase Knowledge Base — billing module
 
         | | |
@@ -35,7 +35,7 @@ class CodebaseKnowledgeBaseParserTest extends TestCase
 
     public function test_extracts_the_execution_recipe(): void
     {
-        $markdown = <<<MD
+        $markdown = <<<'MD'
         ## Execution Recipe
 
         ```

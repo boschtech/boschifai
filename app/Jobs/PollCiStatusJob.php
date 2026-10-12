@@ -20,9 +20,7 @@ class PollCiStatusJob implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public string $runId, public int $elapsedSeconds = 0)
-    {
-    }
+    public function __construct(public string $runId, public int $elapsedSeconds = 0) {}
 
     public function handle(CiPollingService $ci, ConfidenceScoreCalculator $confidence, CancellationChecker $cancellation): void
     {

@@ -56,15 +56,13 @@ class LocalTestRunner
      */
     private const COVERAGE_REPORT_DIR = 'coverage-report';
 
-    public function __construct(private JunitXmlParser $junitParser)
-    {
-    }
+    public function __construct(private JunitXmlParser $junitParser) {}
 
     /**
-     * @param ?array{install_command: string, test_command: string} $recipe when present
-     *        (coverage mode), replaces the hardcoded composer/phpunit command below.
-     * @param callable(): bool $isCancelled polled while the sidecar runs the command; on true,
-     *                                       a cancel file is written for the sidecar to notice.
+     * @param  ?array{install_command: string, test_command: string}  $recipe  when present
+     *                                                                         (coverage mode), replaces the hardcoded composer/phpunit command below.
+     * @param  callable(): bool  $isCancelled  polled while the sidecar runs the command; on true,
+     *                                         a cancel file is written for the sidecar to notice.
      * @return array{cancelled: bool, total: int, passed: int, failed: int, skipped: int, duration_ms: int, tests: array, junit_xml_path: ?string, coverage_report_path: ?string}
      */
     public function run(Run $run, string $checkoutPath, string $generatedTestRelativePath, callable $isCancelled, ?array $recipe = null): array

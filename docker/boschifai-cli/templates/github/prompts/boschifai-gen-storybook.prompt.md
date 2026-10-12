@@ -5,21 +5,17 @@ mode: agent
 
 # Generate Storybook Stories
 
-Generate comprehensive Storybook stories for a component from a local file or GitLab repository.
+Generate comprehensive Storybook stories for a component from a local file.
 
 ## Input Sources
 
 | Source | CLI example |
 |--------|------------|
 | **Local file** | `boschifai gen storybook --file src/components/Button.tsx` |
-| **GitLab repo** | `boschifai gen storybook --repo-url https://gitlab.com/group/project` |
-| **GitLab repo + specific file** | `boschifai gen storybook --repo-url https://gitlab.com/group/project --repo-file src/components/Button.tsx` |
-| **GitLab repo + branch** | `boschifai gen storybook --repo-url https://gitlab.com/group/project --repo-branch feature/my-branch` |
 
 ## Instructions
 
 0. **Detect the input source:**
-   - If `--repo-url` is provided: run `boschifai gen storybook --repo-url <URL> [--repo-file <path>] [--repo-branch <branch>] --json` and parse the returned JSON context (fields: `tech_stack`, `source_files`, `test_files`, `file_tree`). Use `tech_stack` to confirm React/Vue/Svelte and Storybook version. If `--repo-file` is given, target that component file; otherwise present component files from `source_files` and ask the user which to cover.
    - If `--file` is provided: run `boschifai gen storybook --file <path>` then read that file.
    - Otherwise: read the currently open file.
 

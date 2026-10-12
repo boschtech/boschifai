@@ -5,7 +5,7 @@ mode: agent
 
 # Generate Component Tests
 
-Generate isolated component tests for the current file, described component/service, or GitLab repository.
+Generate isolated component tests for the current file, described component/service, or local path.
 
 ## Input Sources
 
@@ -13,14 +13,10 @@ Generate isolated component tests for the current file, described component/serv
 |--------|---------|
 | **Current file** (default) | `/boschifai-gen-component` with source file open in editor |
 | **Local file path** | `/boschifai-gen-component --file src/payments/PaymentService.java` |
-| **GitLab repo** | `/boschifai-gen-component --repo-url https://gitlab.com/group/project` |
-| **GitLab repo + specific file** | `/boschifai-gen-component --repo-url https://gitlab.com/group/project --repo-file src/payments/PaymentService.java` |
-| **GitLab repo + branch** | `/boschifai-gen-component --repo-url https://gitlab.com/group/project --repo-branch feature/my-branch` |
 
 ## Instructions
 
 0. **Detect the input source:**
-   - If `--repo-url` is provided: run `boschifai gen component --repo-url <URL> [--repo-file <path>] [--repo-branch <branch>] --json` and parse the returned JSON context (fields: `tech_stack`, `source_files`, `test_files`, `stack_files`, `file_tree`). Use the context to perform tech-stack detection (step 1) with real evidence from the repo. If `--repo-file` is given, target that component; otherwise show the source file list and ask the user which component to test.
    - If `--file` or a local path is provided: read that file directly and proceed to step 1.
    - Otherwise: read the currently open file in the editor.
 

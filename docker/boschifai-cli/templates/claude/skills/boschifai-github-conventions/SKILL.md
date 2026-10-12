@@ -5,7 +5,7 @@ description: "GitHub integration conventions — branch/PR creation via the gh C
 
 # Boschifai GitHub Conventions
 
-These conventions govern how Boschifai opens branches/PRs for generated test files via the `gh` CLI (already available in this environment — no separate token setup like the Jira/GitLab integrations require).
+These conventions govern how Boschifai opens branches/PRs for generated test files via the `gh` CLI (already available in this environment — no separate token setup like the Jira integration requires).
 
 ## When to Act
 

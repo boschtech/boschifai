@@ -15,7 +15,6 @@ description: "Storybook story generation rules for component libraries using CSF
 - **Addons installed**:
   - `@storybook/addon-a11y` — accessibility panel (globally applied)
   - `@storybook/addon-docs` — auto-generated docs pages
-  - `@storybook/addon-designs` — Figma design link panel
   - `@storybook/addon-themes` — theme switching
   - `@storybook/addon-links` — cross-story links
   - `@storybook/addon-coverage` — code coverage
@@ -277,10 +276,6 @@ const meta: Meta<typeof MyComponent> = {
         { name: 'dark', value: '#333333' },
       ],
     },
-    design: {
-      type: 'figma',
-      url: '<figma-url-or-empty-string>',
-    },
   },
   argTypes: { ... },
 };
@@ -301,7 +296,6 @@ parameters: {
 For Emirates Carbon (`@crbn/ui`):
 - Import `BADGES` from `@crbn/addon/constants` — use `BADGES.BETA`, `BADGES.STABLE`, or `BADGES.CRITICAL`
 - `version: process.env.CRBN_UI`
-- Figma URL pattern: `https://www.figma.com/design/tELlY0NsyWKCd0poI6MezJ/...`
 
 ---
 
@@ -328,7 +322,6 @@ When generating a new story file:
 - [ ] Uses CSF3 (`Meta` + `StoryObj` + named object exports)
 - [ ] `import type { Meta, StoryObj } from '@storybook/nextjs-vite'`
 - [ ] `tags: ['autodocs', '<system-tag>']`
-- [ ] `parameters.design.url` is a real Figma link (or placeholder `''`)
 - [ ] `parameters.backgrounds` includes default and dark values
 - [ ] All interactive components have `disabled` story
 - [ ] All loading components have `loading: true` / `skeleton: true` story

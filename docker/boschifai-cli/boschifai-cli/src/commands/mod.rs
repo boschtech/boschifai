@@ -1,11 +1,9 @@
 pub mod api_test;
 pub mod data;
 pub mod defect;
-pub mod figma;
 pub mod gen;
 pub mod init;
 pub mod plan;
-pub mod qmetry;
 pub mod report;
 pub mod requirements;
 pub mod strategy;

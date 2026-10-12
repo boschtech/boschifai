@@ -34,21 +34,6 @@ boschifai test-case generate --file <path>
 
 5. **Generate a markdown file** named `test_cases_<name>.md` in the same directory.
 
-6. **Publish to QMetry (optional)** — if `--qmetry-project <KEY>` was provided, push the test cases to QMetry Test Management for Jira after saving the file. Requires `BOSCHIFAI_JIRA_BASE_URL` and `BOSCHIFAI_JIRA_TOKEN` to be set.
-
-   ```bash
-   # Generate + push in one step
-   boschifai test-case generate --jira-key <KEY> --qmetry-project <PROJECT_KEY>
-   # With folder
-   boschifai test-case generate --jira-key <KEY> --qmetry-project <PROJECT_KEY> --qmetry-folder project/ui/createfamily
-
-   # Or publish from a saved JSON file
-   boschifai test-case generate --jira-key <KEY> --json > test_cases_<KEY>.json
-   boschifai qmetry publish --file test_cases_<KEY>.json --project <PROJECT_KEY> --folder project/ui/createfamily
-   ```
-
-   Report the QMetry keys returned (e.g. `TC-42, TC-43`) to the user. Skip this step if `--qmetry-project` was not provided.
-
 ## Output File Structure
 
 ```markdown

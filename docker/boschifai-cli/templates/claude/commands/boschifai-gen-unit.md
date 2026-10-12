@@ -13,14 +13,10 @@ Generate focused unit tests for functions, methods, or modules.
 |--------|---------|
 | **Current file** (default) | `/boschifai-gen-unit` with file open in editor |
 | **Local file path** | `/boschifai-gen-unit --file src/auth/login.ts` |
-| **GitLab repo** | `/boschifai-gen-unit --repo-url https://gitlab.com/group/project` |
-| **GitLab repo + specific file** | `/boschifai-gen-unit --repo-url https://gitlab.com/group/project --repo-file src/auth/login.ts` |
-| **GitLab repo + branch** | `/boschifai-gen-unit --repo-url https://gitlab.com/group/project --repo-branch feature/my-branch` |
 
 ## Instructions
 
 0. **Detect the input source:**
-   - If `--repo-url` is provided: run `boschifai gen unit --repo-url <URL> [--repo-file <path>] [--repo-branch <branch>] --json` and parse the returned JSON context (fields: `tech_stack`, `source_files`, `test_files`, `file_tree`). If `--repo-file` was given, target that file; otherwise present the source file list and ask the user which file to test. Use the `test_files` to infer the project's existing test patterns before generating.
    - If `--file` or a local path is provided: read that file directly and proceed to step 1.
    - Otherwise: read the currently open file in the editor.
 

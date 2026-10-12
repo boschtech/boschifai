@@ -12,14 +12,10 @@ Generate end-to-end tests for the described journey or current file. Automatical
 | Source | CLI example |
 |--------|------------|
 | **Local file** | `boschifai gen e2e --file docs/journey-checkout.md` |
-| **GitLab repo** | `boschifai gen e2e --repo-url https://gitlab.com/group/project` |
-| **GitLab repo + specific file** | `boschifai gen e2e --repo-url https://gitlab.com/group/project --repo-file docs/journeys/checkout.md` |
-| **GitLab repo + branch** | `boschifai gen e2e --repo-url https://gitlab.com/group/project --repo-branch feature/my-branch` |
 
 ## Instructions
 
 0. **Detect the input source:**
-   - If `--repo-url` is provided: run `boschifai gen e2e --repo-url <URL> [--repo-file <path>] [--repo-branch <branch>] --json` and parse the returned JSON context (fields: `tech_stack`, `source_files`, `test_files`, `file_tree`). Use the context for E2E type detection (step 1). If `--repo-file` is given, target that journey file; otherwise identify journey files and ask the user which to cover.
    - If `--file` is provided: run `boschifai gen e2e --file <path>` then read that file.
    - Otherwise: read the currently open file.
 

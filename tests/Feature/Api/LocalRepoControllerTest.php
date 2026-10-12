@@ -179,4 +179,17 @@ class LocalRepoControllerTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors(['repositories.0.path']);
     }
+
+    public function test_browsing_and_connecting_are_unavailable_when_local_repos_are_disabled(): void
+    {
+        config(['boschifai.features.local_repos' => false]);
+
+        $this->getJson('/api/local-repos/browse')
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Local repositories are disabled on this installation.');
+        $this->postJson('/api/local-repos/connect', ['repositories' => [['path' => 'alpha']]])
+            ->assertNotFound();
+
+        $this->assertSame(0, RepoConfig::count());
+    }
 }

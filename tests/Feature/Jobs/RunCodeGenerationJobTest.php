@@ -162,7 +162,7 @@ class RunCodeGenerationJobTest extends TestCase
      * which is meant to stay fully agentic per the original MCP design decision — never picks up
      * that push-only allowlist just because a PAT happens to be configured.
      */
-    public function test_does_not_scope_allowed_tools_to_the_push_step_list_even_with_a_pat_configured(): void
+    public function test_code_generation_never_gets_the_github_token_or_mcp_server_even_with_a_pat_configured(): void
     {
         config(['boschifai.github_mcp.pat' => 'fake-pat']);
         Queue::fake([RunLocalTestExecutionJob::class]);
@@ -185,8 +185,9 @@ class RunCodeGenerationJobTest extends TestCase
 
             return is_array($command)
                 && ($command[0] ?? null) === 'claude'
-                && in_array('--mcp-config', $command, true)
-                && ! in_array('--allowedTools', $command, true);
+                && ! in_array('--mcp-config', $command, true)
+                && ! in_array('--allowedTools', $command, true)
+                && ! in_array('fake-pat', $process->environment, true);
         });
     }
 }

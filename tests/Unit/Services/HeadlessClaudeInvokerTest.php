@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Services\ClaudeRunner\ClaudeProcessHardening;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
@@ -68,18 +69,39 @@ class HeadlessClaudeInvokerTest extends TestCase
         $this->assertSame($output, File::get($transcript));
 
         Process::assertRan(function ($process) {
-            return $process->command === [
+            return array_slice($process->command, 0, 10) === [
                 'claude', '-p', 'Do the thing',
                 '--output-format', 'stream-json',
                 '--verbose',
                 '--permission-mode', 'acceptEdits',
                 '--model', 'test-model',
-            ] && $process->environment === ['ANTHROPIC_API_KEY' => 'sk-test']
+            ] && array_slice($process->command, 10) === app(ClaudeProcessHardening::class)->cliArguments()
+                && $process->environment['ANTHROPIC_API_KEY'] === 'sk-test'
                 && $process->timeout === 60;
         });
     }
 
-    public function test_the_mcp_config_is_passed_only_when_a_pat_is_configured_and_push_gets_an_allowlist(): void
+    public function test_the_agent_process_never_inherits_the_workers_secrets(): void
+    {
+        $_SERVER['DB_PASSWORD'] = 'db-secret';
+        $_ENV['APP_KEY'] = 'base64:app-secret';
+        Process::fake();
+
+        try {
+            $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, 'code_generation');
+        } finally {
+            unset($_SERVER['DB_PASSWORD'], $_ENV['APP_KEY']);
+        }
+
+        Process::assertRan(fn ($process) => $process->environment['DB_PASSWORD'] === false
+            && $process->environment['APP_KEY'] === false
+            && $process->environment['ANTHROPIC_API_KEY'] === 'sk-test'
+            && ! in_array('db-secret', $process->environment, true)
+            && in_array('--strict-mcp-config', $process->command, true)
+            && in_array('--setting-sources', $process->command, true));
+    }
+
+    public function test_only_the_push_step_gets_the_github_token_and_mcp_server_with_an_allowlist(): void
     {
         config(['boschifai.github_mcp.pat' => 'ghp_test', 'boschifai.github_mcp.config_path' => '/etc/mcp.json']);
         Process::fake();
@@ -87,9 +109,14 @@ class HeadlessClaudeInvokerTest extends TestCase
         $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, 'code_generation');
         $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, 'push');
 
+        // Every other step's agent never sees the push credential or the GitHub MCP server.
         Process::assertRan(fn ($process) => in_array('gen', $process->command, true)
-            && in_array('--mcp-config', $process->command, true)
+            && ! in_array('--mcp-config', $process->command, true)
             && ! in_array('--allowedTools', $process->command, true)
+            && ! in_array('ghp_test', $process->environment, true));
+
+        Process::assertRan(fn ($process) => in_array('push', $process->command, true)
+            && in_array('/etc/mcp.json', $process->command, true)
             && $process->environment['GITHUB_PERSONAL_ACCESS_TOKEN'] === 'ghp_test');
 
         Process::assertRan(function ($process) {
@@ -205,5 +232,16 @@ class HeadlessClaudeInvokerTest extends TestCase
         $this->assertStringStartsWith(storage_path('app/boschifai-runs/run-1/claude/gap_analysis-'), $a);
         $this->assertStringEndsWith('.jsonl', $a);
         $this->assertNotSame($a, $b);
+    }
+
+    public function test_the_push_step_gets_no_github_token_when_mcp_push_is_disabled(): void
+    {
+        config(['boschifai.github_mcp.pat' => 'ghp_test', 'boschifai.features.github_mcp_push' => false]);
+        Process::fake();
+
+        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, 'push');
+
+        Process::assertRan(fn ($process) => ! in_array('--mcp-config', $process->command, true)
+            && ! in_array('ghp_test', $process->environment, true));
     }
 }

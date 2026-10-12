@@ -81,7 +81,7 @@ class PushAndOpenPrJob implements ShouldQueue
         );
 
         $checkoutPath = $workspace->path($run);
-        $useMcp = (bool) config('boschifai.github_mcp.pat');
+        $useMcp = config('boschifai.features.github_mcp_push') && (bool) config('boschifai.github_mcp.pat');
 
         try {
             if ($useMcp) {

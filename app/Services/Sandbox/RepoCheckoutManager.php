@@ -58,6 +58,12 @@ class RepoCheckoutManager
         $path = $this->path($repo);
 
         if ($repo->github_connection_id === null) {
+            // A local repo is a folder on this host. When the feature is off (an install shared
+            // between customers), a run must not read it even if it was connected earlier.
+            if (! config('boschifai.features.local_repos')) {
+                throw new RuntimeException("Local repositories are disabled on this installation, so '{$repo->display_name}' can't be used. Connect it from GitHub instead.");
+            }
+
             return $path;
         }
 

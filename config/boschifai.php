@@ -91,6 +91,38 @@ return [
         // TODO: needs a real dollar figure from engineering/finance before going live —
         // not invented here (see plan §3).
         'max_cost_per_run_usd' => env('BOSCHIFAI_MAX_COST_PER_RUN_USD'),
+
+        // Locks down the `claude` process (see App\Services\ClaudeRunner\ClaudeProcessHardening).
+        'hardening' => [
+            // The only API endpoint the CLI may use; pinned over anything a repo's
+            // .claude/settings.json sets.
+            'api_base_url' => env('BOSCHIFAI_CLAUDE_API_BASE_URL', 'https://api.anthropic.com'),
+
+            // Extra worker environment variables the CLI may see, comma-separated, on top of
+            // the built-in allowlist (PATH, HOME, locale, proxy/CA settings…). Never add
+            // secrets here — credentials are passed per invocation.
+            'env_passthrough' => array_values(array_filter(array_map('trim', explode(',', (string) env('BOSCHIFAI_CLAUDE_ENV_PASSTHROUGH', ''))))),
+
+            // Claude Code's --restricted mode: confines file tools to the checkout and removes
+            // Bash and other code-running tools. Stronger isolation, but it changes what the
+            // agent can do in every step, so it's off until a full pipeline run has been
+            // verified with it on.
+            'restricted_mode' => (bool) env('BOSCHIFAI_CLAUDE_RESTRICTED_MODE', false),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Single-tenant features
+    |--------------------------------------------------------------------------
+    |
+    | Both work only because this install serves one organisation: the local-repo browser reads
+    | the host's own filesystem, and the MCP push path uses one GitHub token for every repo.
+    | Turn them off for any install shared between customers.
+    */
+    'features' => [
+        'local_repos' => (bool) env('BOSCHIFAI_FEATURE_LOCAL_REPOS', true),
+        'github_mcp_push' => (bool) env('BOSCHIFAI_FEATURE_GITHUB_MCP_PUSH', true),
     ],
 
     /*

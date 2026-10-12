@@ -1,10 +1,5 @@
 name: Quality Gate
 
-# Runs the test suites (each with a coverage floor) and the code-style/lint checks on every
-# pull request and on pushes to main. The final `quality-gate` job is the single status check
-# to mark as required in branch protection — it only passes when every job it `needs:` passed,
-# so jobs added there are gated automatically without touching the GitHub settings.
-
 on:
   pull_request:
   push:
@@ -170,3 +165,23 @@ jobs:
       # it to get a PR through. Locally: `cargo llvm-cov --workspace --fail-under-lines 95`.
       - name: Run tests with coverage
         run: cargo llvm-cov --workspace --fail-under-lines 95
+
+  quality-gate:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    needs: [ app-tests, frontend-tests, php-style, cli-tests ]
+    if: always()
+    steps:
+      - name: Require all jobs to pass
+        run: |
+          echo "app-tests: ${{ needs.app-tests.result }}"
+          echo "frontend-tests: ${{ needs.frontend-tests.result }}"
+          echo "php-style: ${{ needs.php-style.result }}"
+          echo "cli-tests: ${{ needs.cli-tests.result }}"
+          if [ "${{ needs.app-tests.result }}" != "success" ] \
+            || [ "${{ needs.frontend-tests.result }}" != "success" ] \
+            || [ "${{ needs.php-style.result }}" != "success" ] \
+            || [ "${{ needs.cli-tests.result }}" != "success" ]; then
+            echo "::error::Quality gate failed — one or more required jobs did not pass."
+            exit 1
+          fi

@@ -1,0 +1,209 @@
+<?php
+
+namespace Tests\Unit\Services;
+
+use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
+use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Process\Factory;
+use Illuminate\Process\FakeProcessResult;
+use Illuminate\Process\InvokedProcess;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
+use Mockery;
+use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
+use Symfony\Component\Process\Process as SymfonyProcess;
+use Tests\TestCase;
+
+/**
+ * HeadlessClaudeInvoker's command construction and polling loop, with `claude` always faked.
+ */
+class HeadlessClaudeInvokerTest extends TestCase
+{
+    private string $dir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->dir = sys_get_temp_dir().'/boschifai-invoker-test-'.uniqid();
+        config([
+            'boschifai.claude.model' => 'test-model',
+            'boschifai.claude.api_key' => 'sk-test',
+            'boschifai.github_mcp.pat' => null,
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        File::deleteDirectory($this->dir);
+        parent::tearDown();
+    }
+
+    private function invoker(): HeadlessClaudeInvoker
+    {
+        return app(HeadlessClaudeInvoker::class);
+    }
+
+    public function test_a_successful_invocation_writes_the_transcript_and_parses_its_summary(): void
+    {
+        $output = json_encode(['type' => 'assistant', 'message' => ['content' => [['type' => 'text', 'text' => 'hi']]]])."\n"
+            .json_encode(['type' => 'result', 'subtype' => 'success', 'total_cost_usd' => 0.25, 'num_turns' => 4, 'usage' => ['input_tokens' => 11, 'output_tokens' => 22]])."\n";
+
+        Process::fake(['*' => Process::result(output: $output, errorOutput: 'some warning')]);
+
+        $transcript = $this->dir.'/nested/transcript.jsonl';
+        $result = $this->invoker()->invoke($this->dir, 'Do the thing', $transcript, 60, fn () => false);
+
+        $this->assertTrue($result->succeeded());
+        $this->assertSame(0, $result->exitCode);
+        $this->assertFalse($result->timedOut);
+        $this->assertFalse($result->cancelled);
+        $this->assertSame(0.25, $result->totalCostUsd);
+        $this->assertSame(4, $result->numTurns);
+        $this->assertSame(11, $result->inputTokens);
+        $this->assertSame(22, $result->outputTokens);
+        $this->assertSame('some warning', trim($result->stderr));
+        $this->assertSame($transcript, $result->rawTranscriptPath);
+        $this->assertSame($output, File::get($transcript));
+
+        Process::assertRan(function ($process) {
+            return $process->command === [
+                'claude', '-p', 'Do the thing',
+                '--output-format', 'stream-json',
+                '--verbose',
+                '--permission-mode', 'acceptEdits',
+                '--model', 'test-model',
+            ] && $process->environment === ['ANTHROPIC_API_KEY' => 'sk-test']
+                && $process->timeout === 60;
+        });
+    }
+
+    public function test_the_mcp_config_is_passed_only_when_a_pat_is_configured_and_push_gets_an_allowlist(): void
+    {
+        config(['boschifai.github_mcp.pat' => 'ghp_test', 'boschifai.github_mcp.config_path' => '/etc/mcp.json']);
+        Process::fake();
+
+        $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, 'code_generation');
+        $this->invoker()->invoke($this->dir, 'push', $this->dir.'/b.jsonl', 60, fn () => false, 'push');
+
+        Process::assertRan(fn ($process) => in_array('gen', $process->command, true)
+            && in_array('--mcp-config', $process->command, true)
+            && ! in_array('--allowedTools', $process->command, true)
+            && $process->environment['GITHUB_PERSONAL_ACCESS_TOKEN'] === 'ghp_test');
+
+        Process::assertRan(function ($process) {
+            if (! in_array('push', $process->command, true)) {
+                return false;
+            }
+            $index = array_search('--allowedTools', $process->command, true);
+
+            return $index !== false && $process->command[$index + 1]
+                === 'mcp__github__create_branch,mcp__github__create_or_update_file,mcp__github__push_files,mcp__github__create_pull_request';
+        });
+    }
+
+    /**
+     * Laravel's FakeInvokedProcess has no stop() method, so the deadline/cancel branches are
+     * driven through a mocked PendingProcess/InvokedProcess pair instead of Process::fake().
+     *
+     * @param  bool|callable  $runningSequence  values returned by successive running() calls
+     */
+    private function swapInvokedProcess(array $runningSequence, callable $wait, bool $expectStop): void
+    {
+        $invoked = Mockery::mock(InvokedProcess::class);
+        $invoked->shouldReceive('running')->andReturn(...$runningSequence);
+        $invoked->shouldReceive('wait')->andReturnUsing($wait);
+        if ($expectStop) {
+            $invoked->shouldReceive('stop')->once()->with(3);
+        } else {
+            $invoked->shouldNotReceive('stop');
+        }
+
+        $pending = Mockery::mock(PendingProcess::class);
+        $pending->shouldReceive('path', 'timeout', 'env')->andReturnSelf();
+        $pending->shouldReceive('start')->andReturn($invoked);
+
+        $factory = Mockery::mock(Factory::class)->makePartial();
+        $factory->shouldReceive('newPendingProcess')->andReturn($pending);
+        Process::swap($factory);
+    }
+
+    private function fakeResult(int $exitCode): ProcessResult
+    {
+        return new FakeProcessResult(exitCode: $exitCode);
+    }
+
+    public function test_a_process_still_running_past_its_deadline_is_stopped_and_reported_as_timed_out(): void
+    {
+        $this->swapInvokedProcess([true], fn () => $this->fakeResult(143), expectStop: true);
+        $transcript = $this->dir.'/t.jsonl';
+
+        $result = $this->invoker()->invoke($this->dir, 'slow', $transcript, 0, fn () => false);
+
+        $this->assertTrue($result->timedOut);
+        $this->assertFalse($result->cancelled);
+        $this->assertFalse($result->succeeded());
+        $this->assertSame(143, $result->exitCode);
+        // Summary deliberately not parsed for a timed-out invocation.
+        $this->assertNull($result->totalCostUsd);
+        $this->assertStringContainsString('Timed out', $result->failureReason());
+    }
+
+    public function test_a_cancellation_request_stops_the_process_and_reports_cancelled(): void
+    {
+        $this->swapInvokedProcess([true], fn () => $this->fakeResult(143), expectStop: true);
+
+        $result = $this->invoker()->invoke($this->dir, 'cancel me', $this->dir.'/t.jsonl', 600, fn () => true);
+
+        $this->assertTrue($result->cancelled);
+        $this->assertFalse($result->timedOut);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_symfonys_own_timeout_firing_on_wait_is_reported_as_timed_out(): void
+    {
+        $this->swapInvokedProcess([false], function () {
+            $symfony = new SymfonyProcess(['claude']);
+
+            throw new ProcessTimedOutException(
+                new SymfonyTimeoutException($symfony, SymfonyTimeoutException::TYPE_GENERAL),
+                $this->fakeResult(-1),
+            );
+        }, expectStop: false);
+
+        $result = $this->invoker()->invoke($this->dir, 'x', $this->dir.'/t.jsonl', 600, fn () => false);
+
+        $this->assertTrue($result->timedOut);
+        $this->assertSame(-1, $result->exitCode);
+        $this->assertStringContainsString('exceeded the timeout', $result->stderr);
+    }
+
+    public function test_the_loop_keeps_polling_while_the_process_runs_and_not_cancelled(): void
+    {
+        $checks = 0;
+        Process::fake(['*' => Process::describe()->exitCode(3)->errorOutput('crashed')->runsFor(iterations: 1)]);
+
+        $result = $this->invoker()->invoke($this->dir, 'run', $this->dir.'/t.jsonl', 600, function () use (&$checks) {
+            $checks++;
+
+            return false;
+        });
+
+        $this->assertSame(1, $checks);
+        $this->assertSame(3, $result->exitCode);
+        $this->assertFalse($result->cancelled);
+        $this->assertFalse($result->succeeded());
+        $this->assertSame('crashed', trim($result->stderr));
+    }
+
+    public function test_transcript_path_for_is_under_the_run_directory_and_unique(): void
+    {
+        $a = $this->invoker()->transcriptPathFor('run-1', 'gap_analysis');
+        $b = $this->invoker()->transcriptPathFor('run-1', 'gap_analysis');
+
+        $this->assertStringStartsWith(storage_path('app/boschifai-runs/run-1/claude/gap_analysis-'), $a);
+        $this->assertStringEndsWith('.jsonl', $a);
+        $this->assertNotSame($a, $b);
+    }
+}

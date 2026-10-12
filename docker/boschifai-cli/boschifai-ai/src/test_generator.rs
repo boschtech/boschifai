@@ -67,3 +67,42 @@ pub async fn generate_tests_from_requirement(
 
     Ok(test_cases)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn generates_two_cases_named_after_the_requirement() {
+        let requirement = Requirement {
+            id: "AIR-7".into(),
+            title: "Refunds".into(),
+            description: String::new(),
+        };
+
+        let cases = generate_tests_from_requirement(&requirement).await.unwrap();
+
+        assert_eq!(
+            cases.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            ["TC-AIR-7-001", "TC-AIR-7-002"]
+        );
+        assert!(cases.iter().all(|c| c.title.contains("Refunds")));
+        assert!(cases.iter().all(|c| c.steps.len() == 3));
+    }
+
+    #[test]
+    fn errors_describe_what_went_wrong() {
+        assert_eq!(
+            AIError::ConnectionError("timeout".into()).to_string(),
+            "failed to connect to AI service: timeout"
+        );
+        assert_eq!(
+            AIError::ParseError("bad json".into()).to_string(),
+            "AI service returned an invalid response: bad json"
+        );
+        assert_eq!(
+            AIError::RequestError("429".into()).to_string(),
+            "AI service request failed: 429"
+        );
+    }
+}

@@ -36,3 +36,4 @@ Thumbs.db
 # Rust build artifacts from docker/boschifai-cli (bare-host `cargo build`) — regenerated on
 # every build, and can run into the hundreds of MB.
 target/
+/coverage

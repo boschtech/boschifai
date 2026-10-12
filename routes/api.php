@@ -1,16 +1,26 @@
 <?php
 
 use App\Http\Controllers\Api\GithubConnectionController;
+use App\Http\Controllers\Api\InvitationAcceptController;
 use App\Http\Controllers\Api\LocalRepoController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\RepoConfigController;
 use App\Http\Controllers\Api\RunApprovalController;
 use App\Http\Controllers\Api\RunController;
 use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Controllers\Api\WorkspaceInvitationController;
+use App\Http\Controllers\Api\WorkspaceMemberController;
 use App\Http\Controllers\Api\WorkspaceSwitchController;
 use Illuminate\Support\Facades\Route;
 
-// Every API route requires a signed-in user (Sanctum session — see bootstrap/app.php) who belongs
+// Opening and accepting an invitation link works signed in or not (see InvitationAcceptController).
+Route::middleware('throttle:20,1')->group(function () {
+    Route::get('/invitations/{token}', [InvitationAcceptController::class, 'show']);
+    Route::post('/invitations/{token}/accept', [InvitationAcceptController::class, 'accept']);
+});
+
+// Every other API route requires a signed-in user (Sanctum session — see bootstrap/app.php) who belongs
 // to a workspace; all data is scoped to their current workspace (see BelongsToWorkspace).
 Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     Route::get('/me', MeController::class);
@@ -38,8 +48,16 @@ Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     Route::get('/usage/tokens-this-month', [UsageController::class, 'tokensThisMonth']);
     Route::get('/usage/tokens-this-month/details', [UsageController::class, 'tokensThisMonthDetails']);
 
-    // Managing the workspace's repositories and GitHub connections: admins and owners only.
+    // Managing the workspace — its name, members, repositories and GitHub connections: admins
+    // and owners only.
     Route::middleware('workspace.manage')->group(function () {
+        Route::get('/workspace', [WorkspaceController::class, 'show']);
+        Route::patch('/workspace', [WorkspaceController::class, 'update']);
+        Route::patch('/workspace/members/{member}', [WorkspaceMemberController::class, 'update'])->whereNumber('member');
+        Route::delete('/workspace/members/{member}', [WorkspaceMemberController::class, 'destroy'])->whereNumber('member');
+        Route::post('/workspace/invitations', [WorkspaceInvitationController::class, 'store'])->middleware('throttle:30,60');
+        Route::delete('/workspace/invitations/{invitation}', [WorkspaceInvitationController::class, 'destroy']);
+
         Route::delete('/runs/{run}', [RunController::class, 'destroy']);
         Route::delete('/repo-configs/{repoConfig}', [RepoConfigController::class, 'destroy']);
 

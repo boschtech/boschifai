@@ -52,4 +52,11 @@ describe('auth guard', () => {
         expect(await navigate(storeWith({ signedIn: true, canManage: false }), settings)).toEqual({ name: 'home' });
         expect(await navigate(storeWith({ signedIn: true, canManage: true }), settings)).toBeUndefined();
     });
+
+    it('lets everyone open public pages (the invitation link), signed in or not', async () => {
+        const invitation = { meta: { public: true }, fullPath: '/invitations/abc' };
+
+        expect(await navigate(storeWith(), invitation)).toBeUndefined();
+        expect(await navigate(storeWith({ signedIn: true }), invitation)).toBeUndefined();
+    });
 });

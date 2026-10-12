@@ -60,6 +60,14 @@ describe('router', () => {
         expect(route({ name: 'settings.github' }).meta.requiresManage).toBe(true);
     });
 
+    it('opens invitation links for everyone and keeps workspace settings for admins', () => {
+        const invitation = route('/invitations/tok-1');
+        expect(invitation.name).toBe('invitations.show');
+        expect(invitation.meta.public).toBe(true);
+        expect(invitation.matched[0].props.default).toBe(true);
+        expect(route({ name: 'settings.workspace' }).meta.requiresManage).toBe(true);
+    });
+
     it('uses clean history URLs', () => {
         expect(router.mode).toBe('history');
     });
@@ -67,7 +75,7 @@ describe('router', () => {
 
 describe('store', () => {
     it('registers every namespaced module', () => {
-        expect(Object.keys(store._modules.root._children).sort()).toEqual(['auth', 'github', 'localRepos', 'repoConfigs', 'runs', 'usage']);
+        expect(Object.keys(store._modules.root._children).sort()).toEqual(['auth', 'github', 'localRepos', 'repoConfigs', 'runs', 'usage', 'workspace']);
         expect(store.getters['runs/list']).toEqual([]);
         expect(store.getters['usage/tokensThisMonth']).toBeNull();
     });

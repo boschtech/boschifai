@@ -1,6 +1,7 @@
 /**
  * Pages need a signed-in user unless their route is marked `meta: { guest: true }` (login,
  * forgot/reset password). Signed-in users visiting a guest page go home instead. Routes marked
+ * `meta: { public: true }` (the invitation link) are open to everyone. Routes marked
  * `meta: { requiresManage: true }` are for workspace admins and owners — the API refuses
  * members anyway; this just keeps them off a page they can't use.
  */
@@ -11,6 +12,10 @@ export function createAuthGuard(store) {
         }
 
         const signedIn = store.getters['auth/isAuthenticated'];
+
+        if (to.meta.public) {
+            return next();
+        }
 
         if (to.meta.guest) {
             return signedIn ? next({ name: 'home' }) : next();

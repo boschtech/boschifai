@@ -3,7 +3,7 @@
         class="sticky w-56 shrink-0 overflow-y-auto border-r border-border bg-surface py-6 pr-4"
         style="top: var(--app-header-height, 73px); height: calc(100vh - var(--app-header-height, 73px))"
     >
-        <div v-for="section in sections" :key="section.title" class="mb-6">
+        <div v-for="section in visibleSections" :key="section.title" class="mb-6">
             <h2 class="mb-2 rounded-sm bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-tight text-primary-dark">
                 {{ section.title }}
             </h2>
@@ -56,6 +56,10 @@ const SECTIONS = [
             { name: 'reporting.token-usage', label: 'Token Usage' },
         ],
     },
+    {
+        title: 'Settings',
+        links: [{ name: 'settings.workspace', label: 'Workspace', requiresManage: true }],
+    },
 ];
 
 export default {
@@ -63,6 +67,16 @@ export default {
 
     data() {
         return { sections: SECTIONS };
+    },
+
+    computed: {
+        // Admin-only links are hidden from members; a section with nothing left is hidden too.
+        visibleSections() {
+            const canManage = this.$store?.getters['auth/canManage'] === true;
+            return this.sections
+                .map((section) => ({ ...section, links: section.links.filter((link) => !link.requiresManage || canManage) }))
+                .filter((section) => section.links.length);
+        },
     },
 
     methods: {

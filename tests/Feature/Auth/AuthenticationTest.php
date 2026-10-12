@@ -38,8 +38,11 @@ class AuthenticationTest extends TestCase
 
     public function test_every_api_route_rejects_a_guest(): void
     {
+        // The only API routes deliberately open to guests: opening and accepting an invitation link.
+        $public = ['api/invitations/{token}', 'api/invitations/{token}/accept'];
+
         $apiRoutes = collect(Route::getRoutes()->getRoutes())
-            ->filter(fn (RoutingRoute $route) => str_starts_with($route->uri(), 'api/'));
+            ->filter(fn (RoutingRoute $route) => str_starts_with($route->uri(), 'api/') && ! in_array($route->uri(), $public, true));
 
         // Guards against the check silently covering nothing.
         $this->assertGreaterThan(20, $apiRoutes->count());

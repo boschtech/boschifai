@@ -3,6 +3,7 @@
 namespace Tests\Unit\Services;
 
 use App\Services\ArtifactCollection\TestabilityReviewParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class TestabilityReviewParserTest extends TestCase
@@ -38,7 +39,7 @@ class TestabilityReviewParserTest extends TestCase
         $this->assertNull($this->parser->extractScore('# Some other document with no score table'));
     }
 
-    /** @dataProvider bandProvider */
+    #[DataProvider('bandProvider')]
     public function test_band_matches_boschifai_review_standards_thresholds(int $score, string $expectedBand): void
     {
         $this->assertSame($expectedBand, $this->parser->band($score));

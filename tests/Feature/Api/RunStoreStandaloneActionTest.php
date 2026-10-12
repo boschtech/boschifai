@@ -8,6 +8,7 @@ use App\Jobs\RunStandaloneActionJob;
 use App\Models\RepoConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -29,7 +30,7 @@ class RunStoreStandaloneActionTest extends TestCase
         ]);
     }
 
-    /** @dataProvider standaloneTypesProvider */
+    #[DataProvider('standaloneTypesProvider')]
     public function test_a_standalone_action_is_accepted_with_only_a_repo_picked(string $runType): void
     {
         // Both faked (not just RunStandaloneActionJob): if the run_type-branch in

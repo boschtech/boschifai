@@ -74,7 +74,11 @@ fn filter_minimal(content: &str, lang: Language) -> String {
 
         if matches!(
             lang,
-            Language::Java | Language::JavaScript | Language::TypeScript | Language::Rust | Language::Go
+            Language::Java
+                | Language::JavaScript
+                | Language::TypeScript
+                | Language::Rust
+                | Language::Go
         ) {
             if in_block_comment {
                 if t.contains("*/") {
@@ -242,8 +246,11 @@ pub fn smart_truncate(content: &str, max_lines: usize) -> (String, usize) {
         }
     }
 
-    let mut indexed: Vec<(usize, u8)> =
-        lines.iter().enumerate().map(|(i, l)| (i, score(l))).collect();
+    let mut indexed: Vec<(usize, u8)> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| (i, score(l)))
+        .collect();
     // Sort by score desc, then by position for deterministic output
     indexed.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
 
@@ -276,7 +283,11 @@ pub fn apply_compression(
     is_test_file: bool,
 ) -> (String, usize) {
     let lang = detect_language(path);
-    let effective_level = if is_test_file { FilterLevel::Minimal } else { level };
+    let effective_level = if is_test_file {
+        FilterLevel::Minimal
+    } else {
+        level
+    };
 
     let filtered = filter_source(content, lang, effective_level);
     let after_filter = never_worse(filtered, content);
@@ -372,7 +383,10 @@ mod tests {
     fn test_minimal_strips_block_comments() {
         let java = "/* regular comment */\npublic class Foo {}";
         let result = filter_minimal(java, Language::Java);
-        assert!(!result.contains("regular comment"), "should strip /* comments");
+        assert!(
+            !result.contains("regular comment"),
+            "should strip /* comments"
+        );
         assert!(result.contains("public class Foo"), "should keep code");
     }
 
@@ -396,16 +410,25 @@ mod tests {
     fn test_aggressive_strips_method_bodies_java() {
         let java = "public class Foo {\n    public String getBar() {\n        String result = \"hello\";\n        return result;\n    }\n}";
         let result = filter_aggressive(java, Language::Java);
-        assert!(result.contains("public String getBar()"), "should keep signature");
+        assert!(
+            result.contains("public String getBar()"),
+            "should keep signature"
+        );
         assert!(!result.contains("String result"), "should strip body");
-        assert!(result.contains("// ... implementation"), "should add placeholder");
+        assert!(
+            result.contains("// ... implementation"),
+            "should add placeholder"
+        );
     }
 
     #[test]
     fn test_aggressive_preserves_field_declarations() {
         let java = "public class Foo {\n    private final String field;\n    public void method() {\n        doWork();\n    }\n}";
         let result = filter_aggressive(java, Language::Java);
-        assert!(result.contains("private final String field"), "should keep field");
+        assert!(
+            result.contains("private final String field"),
+            "should keep field"
+        );
         assert!(!result.contains("doWork()"), "should strip method body");
     }
 
@@ -430,8 +453,14 @@ mod tests {
     #[test]
     fn test_filter_level_from_str() {
         assert_eq!("none".parse::<FilterLevel>().unwrap(), FilterLevel::None);
-        assert_eq!("minimal".parse::<FilterLevel>().unwrap(), FilterLevel::Minimal);
-        assert_eq!("aggressive".parse::<FilterLevel>().unwrap(), FilterLevel::Aggressive);
+        assert_eq!(
+            "minimal".parse::<FilterLevel>().unwrap(),
+            FilterLevel::Minimal
+        );
+        assert_eq!(
+            "aggressive".parse::<FilterLevel>().unwrap(),
+            FilterLevel::Aggressive
+        );
         assert!("invalid".parse::<FilterLevel>().is_err());
     }
 
@@ -451,6 +480,9 @@ mod tests {
     fn test_compress_file_tree_passthrough_when_under_limit() {
         let paths: Vec<String> = vec!["src/Foo.java".into(), "src/Bar.java".into()];
         let (result, _) = compress_file_tree(&paths, 300);
-        assert_eq!(result, paths, "should return paths unchanged when under limit");
+        assert_eq!(
+            result, paths,
+            "should return paths unchanged when under limit"
+        );
     }
 }

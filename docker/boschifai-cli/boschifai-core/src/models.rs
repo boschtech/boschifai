@@ -24,7 +24,11 @@ pub enum TestStep {
         step_details: String,
         #[serde(rename = "testData", default, skip_serializing_if = "Option::is_none")]
         test_data: Option<String>,
-        #[serde(rename = "expectedResult", default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "expectedResult",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
         expected_result: Option<String>,
     },
 }

@@ -1,4 +1,6 @@
-use crate::core::compress::{apply_compression, compress_file_tree, truncate_to_lines, FilterLevel};
+use crate::core::compress::{
+    apply_compression, compress_file_tree, truncate_to_lines, FilterLevel,
+};
 use boschifai_core::models::{GitLabFile, GitLabRepoContext};
 use serde_json::Value;
 use std::env;
@@ -54,7 +56,10 @@ fn load_token() -> Result<Option<String>, GitLabError> {
 ///   https://gitlab.com/group/project
 ///   https://gitlab.com/group/project.git
 fn parse_repo(repo_url: &str) -> Result<(String, String), GitLabError> {
-    let url = repo_url.trim().trim_end_matches('/').trim_end_matches(".git");
+    let url = repo_url
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches(".git");
 
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(GitLabError::InvalidUrl(format!(
@@ -171,7 +176,9 @@ fn detect_stack(tree_paths: &[String], stack_files: &[GitLabFile]) -> Vec<String
             let ext = &marker[1..];
             tree_paths.iter().any(|p| p.ends_with(ext))
         } else {
-            tree_paths.iter().any(|p| p == marker || p.ends_with(&format!("/{marker}")))
+            tree_paths
+                .iter()
+                .any(|p| p == marker || p.ends_with(&format!("/{marker}")))
         };
         if matches {
             stack.push(label.to_string());
@@ -180,7 +187,9 @@ fn detect_stack(tree_paths: &[String], stack_files: &[GitLabFile]) -> Vec<String
 
     // Refine nodejs: check if TypeScript is present
     if stack.contains(&"nodejs".to_string()) {
-        let has_ts = tree_paths.iter().any(|p| p.ends_with(".ts") || p.ends_with(".tsx"));
+        let has_ts = tree_paths
+            .iter()
+            .any(|p| p.ends_with(".ts") || p.ends_with(".tsx"));
         let has_tsconfig = tree_paths.iter().any(|p| p.ends_with("tsconfig.json"));
         if has_ts || has_tsconfig {
             stack.push("typescript".to_string());
@@ -286,18 +295,38 @@ const STACK_FILE_NAMES: &[&str] = &[
 ];
 
 const TEST_PATH_PATTERNS: &[&str] = &[
-    "/test/", "/tests/", "/__tests__/", "/spec/", "/specs/",
-    ".test.", ".spec.", "_test.", "_spec.",
+    "/test/",
+    "/tests/",
+    "/__tests__/",
+    "/spec/",
+    "/specs/",
+    ".test.",
+    ".spec.",
+    "_test.",
+    "_spec.",
 ];
 
-const SOURCE_PATH_PREFIXES: &[&str] = &["src/", "lib/", "app/", "pkg/", "internal/", "tests/", "test/", "e2e/", "pages/", "features/", "support/"];
+const SOURCE_PATH_PREFIXES: &[&str] = &[
+    "src/",
+    "lib/",
+    "app/",
+    "pkg/",
+    "internal/",
+    "tests/",
+    "test/",
+    "e2e/",
+    "pages/",
+    "features/",
+    "support/",
+];
 
-const SOURCE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".kt", ".go", ".rs", ".py", ".rb", ".cs"];
+const SOURCE_EXTENSIONS: &[&str] = &[
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".java", ".kt", ".go", ".rs", ".py", ".rb", ".cs",
+];
 
 /// True if the file has a code extension (used for fallback when no standard src/ dir exists).
 fn is_code_file(path: &str) -> bool {
-    SOURCE_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
-        && !is_stack_file(path)
+    SOURCE_EXTENSIONS.iter().any(|ext| path.ends_with(ext)) && !is_stack_file(path)
 }
 
 fn is_stack_file(path: &str) -> bool {
@@ -339,15 +368,13 @@ pub async fn fetch_repo_context(
     let project_url = format!("{api_base}/api/v4/projects/{project_id}");
     let project_meta = get_json(&client, &project_url, token).await?;
 
-    let default_branch = branch
-        .map(String::from)
-        .unwrap_or_else(|| {
-            project_meta
-                .get("default_branch")
-                .and_then(|v| v.as_str())
-                .unwrap_or("master")
-                .to_string()
-        });
+    let default_branch = branch.map(String::from).unwrap_or_else(|| {
+        project_meta
+            .get("default_branch")
+            .and_then(|v| v.as_str())
+            .unwrap_or("master")
+            .to_string()
+    });
 
     let description = project_meta
         .get("description")
@@ -365,7 +392,8 @@ pub async fn fetch_repo_context(
     let tree = fetch_tree(&client, api_base, &project_id, token, &default_branch).await?;
 
     // Identify which files to fetch
-    let stack_file_paths: Vec<&str> = tree.iter()
+    let stack_file_paths: Vec<&str> = tree
+        .iter()
         .filter(|p| is_stack_file(p))
         .map(String::as_str)
         .collect();
@@ -373,7 +401,8 @@ pub async fn fetch_repo_context(
     // Prefer standard source dirs; fall back to any code file when the repo
     // has no conventional src/ layout (e.g. pure E2E automation repos).
     let source_file_paths: Vec<&str> = {
-        let standard: Vec<&str> = tree.iter()
+        let standard: Vec<&str> = tree
+            .iter()
             .filter(|p| is_source_file(p))
             .take(MAX_SOURCE_FILES)
             .map(String::as_str)
@@ -389,7 +418,8 @@ pub async fn fetch_repo_context(
         }
     };
 
-    let test_file_paths: Vec<&str> = tree.iter()
+    let test_file_paths: Vec<&str> = tree
+        .iter()
         .filter(|p| is_test_file(p))
         .take(MAX_TEST_FILES)
         .map(String::as_str)
@@ -398,7 +428,9 @@ pub async fn fetch_repo_context(
     // Fetch file contents (sequential to avoid rate-limits), applying compression in-place
     let mut stack_files = Vec::new();
     for path in &stack_file_paths {
-        if let Ok(f) = fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await {
+        if let Ok(f) =
+            fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await
+        {
             if !f.content.is_empty() {
                 stack_files.push(GitLabFile {
                     path: f.path,
@@ -410,21 +442,33 @@ pub async fn fetch_repo_context(
 
     let mut source_files = Vec::new();
     for path in &source_file_paths {
-        if let Ok(f) = fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await {
+        if let Ok(f) =
+            fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await
+        {
             if !f.content.is_empty() {
-                let (compressed, _) = apply_compression(&f.content, &f.path, filter_level, max_lines_per_file, false);
-                source_files.push(GitLabFile { path: f.path, content: compressed });
+                let (compressed, _) =
+                    apply_compression(&f.content, &f.path, filter_level, max_lines_per_file, false);
+                source_files.push(GitLabFile {
+                    path: f.path,
+                    content: compressed,
+                });
             }
         }
     }
 
     let mut test_files = Vec::new();
     for path in &test_file_paths {
-        if let Ok(f) = fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await {
+        if let Ok(f) =
+            fetch_file_content(&client, api_base, &project_id, token, &default_branch, path).await
+        {
             if !f.content.is_empty() {
                 // Test files always use Minimal (preserve assertion patterns)
-                let (compressed, _) = apply_compression(&f.content, &f.path, filter_level, max_lines_per_file, true);
-                test_files.push(GitLabFile { path: f.path, content: compressed });
+                let (compressed, _) =
+                    apply_compression(&f.content, &f.path, filter_level, max_lines_per_file, true);
+                test_files.push(GitLabFile {
+                    path: f.path,
+                    content: compressed,
+                });
             }
         }
     }

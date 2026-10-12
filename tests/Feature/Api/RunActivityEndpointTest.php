@@ -6,7 +6,9 @@ use App\Enums\RunState;
 use App\Enums\RunStepStatus;
 use App\Models\RepoConfig;
 use App\Models\Run;
+use App\Services\TestExecution\LocalTestRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 /**
@@ -85,9 +87,9 @@ class RunActivityEndpointTest extends TestCase
             'started_at' => now()->subSeconds(20),
         ]);
 
-        $logPath = app(\App\Services\TestExecution\LocalTestRunner::class)->logPathFor($run->id);
-        \Illuminate\Support\Facades\File::ensureDirectoryExists(dirname($logPath));
-        \Illuminate\Support\Facades\File::put($logPath, "Installing dependencies...\n\nRunning phpunit...\nPASS  CustomFieldControllerTest\n");
+        $logPath = app(LocalTestRunner::class)->logPathFor($run->id);
+        File::ensureDirectoryExists(dirname($logPath));
+        File::put($logPath, "Installing dependencies...\n\nRunning phpunit...\nPASS  CustomFieldControllerTest\n");
 
         $response = $this->getJson("/api/runs/{$run->id}/activity")->assertOk();
 
@@ -97,7 +99,7 @@ class RunActivityEndpointTest extends TestCase
             $response->json('log_lines')
         );
 
-        \Illuminate\Support\Facades\File::deleteDirectory($jobsDir);
+        File::deleteDirectory($jobsDir);
     }
 
     public function test_a_running_claude_step_tails_its_real_transcript(): void
@@ -110,8 +112,8 @@ class RunActivityEndpointTest extends TestCase
         ]);
 
         $transcriptPath = storage_path('app/boschifai-runs/test-transcript.jsonl');
-        \Illuminate\Support\Facades\File::ensureDirectoryExists(dirname($transcriptPath));
-        \Illuminate\Support\Facades\File::put($transcriptPath, implode("\n", [
+        File::ensureDirectoryExists(dirname($transcriptPath));
+        File::put($transcriptPath, implode("\n", [
             json_encode(['type' => 'assistant', 'message' => ['content' => [
                 ['type' => 'text', 'text' => 'Reading the requirement file.'],
             ]]]),
@@ -136,6 +138,6 @@ class RunActivityEndpointTest extends TestCase
             '→ Read: .boschifai/requirement_x.md',
         ], $response->json('log_lines'));
 
-        \Illuminate\Support\Facades\File::delete($transcriptPath);
+        File::delete($transcriptPath);
     }
 }

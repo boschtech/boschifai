@@ -34,9 +34,7 @@ class RunTestPlanJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public function __construct(public string $runId)
-    {
-    }
+    public function __construct(public string $runId) {}
 
     public function handle(
         StepExecutionService $steps,

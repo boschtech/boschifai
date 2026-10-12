@@ -41,7 +41,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
         ]); // -> 100 * 30 = 3000
 
         $run->refresh();
-        $breakdown = (new ConfidenceScoreCalculator())->calculate($run);
+        $breakdown = (new ConfidenceScoreCalculator)->calculate($run);
 
         // (2000 + 2000 + 2000 + 3000) / 100 = 90
         $this->assertSame(90, $breakdown['composite']);
@@ -76,7 +76,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
         ]);
 
         $run->refresh();
-        $breakdown = (new ConfidenceScoreCalculator())->calculate($run);
+        $breakdown = (new ConfidenceScoreCalculator)->calculate($run);
 
         // (100*25 + 100*20 + 100*25 + 0*30) / 100 = 70 — CI is the highest-weighted component
         // (plan §7 rationale: it's the only fully independent, real-infrastructure signal), so
@@ -110,7 +110,7 @@ class ConfidenceScoreCalculatorTest extends TestCase
         ]);
 
         $run->refresh();
-        $breakdown = (new ConfidenceScoreCalculator())->calculatePrePush($run);
+        $breakdown = (new ConfidenceScoreCalculator)->calculatePrePush($run);
 
         // (80*25 + 100*20 + 80*25) / 70 = 85.71 -> rounds to 86
         $this->assertSame(86, $breakdown['composite']);

@@ -15,9 +15,7 @@ use RuntimeException;
  */
 class PullRequestService
 {
-    public function __construct(private GithubOAuthService $githubAuth)
-    {
-    }
+    public function __construct(private GithubOAuthService $githubAuth) {}
 
     /** @return array{number: int, url: string, head_sha: string} */
     public function create(Run $run, string $worktreePath, string $branchName): array

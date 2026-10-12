@@ -13,9 +13,7 @@ use RuntimeException;
  */
 class CiPollingService
 {
-    public function __construct(private GithubOAuthService $githubAuth)
-    {
-    }
+    public function __construct(private GithubOAuthService $githubAuth) {}
 
     /** @return array{conclusion: ?string, check_run_id: ?string}|null null if the check hasn't appeared yet */
     public function poll(Run $run): ?array

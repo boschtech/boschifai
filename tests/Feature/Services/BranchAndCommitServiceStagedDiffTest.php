@@ -70,7 +70,7 @@ class BranchAndCommitServiceStagedDiffTest extends TestCase
 
         $this->expectException(UnexpectedStagedFilesException::class);
 
-        (new BranchAndCommitService(new GithubOAuthService()))->createBranchCommitAndPush($run, $this->repoPath);
+        (new BranchAndCommitService(new GithubOAuthService))->createBranchCommitAndPush($run, $this->repoPath);
     }
 
     public function test_commits_successfully_when_only_the_expected_file_is_staged(): void
@@ -95,7 +95,7 @@ class BranchAndCommitServiceStagedDiffTest extends TestCase
         // proving the staged-diff assertion and commit themselves succeeded first. Using
         // try/catch rather than expectException() so the commit can still be inspected after.
         try {
-            (new BranchAndCommitService(new GithubOAuthService()))->createBranchCommitAndPush($run, $this->repoPath);
+            (new BranchAndCommitService(new GithubOAuthService))->createBranchCommitAndPush($run, $this->repoPath);
             $this->fail('Expected a RuntimeException for the missing GitHub connection.');
         } catch (\RuntimeException $e) {
             $this->assertStringContainsString('has no GitHub account connected', $e->getMessage());

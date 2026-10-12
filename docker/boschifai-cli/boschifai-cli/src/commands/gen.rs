@@ -52,7 +52,14 @@ pub async fn run(target: GenTarget, source: GenSource, json: bool) {
 
     // Fetch GitLab context if requested
     let gitlab_ctx = if let Some(ref url) = source.repo_url {
-        match gitlab::fetch_repo_context(url, source.repo_branch.as_deref(), source.filter_level, source.max_lines_per_file).await {
+        match gitlab::fetch_repo_context(
+            url,
+            source.repo_branch.as_deref(),
+            source.filter_level,
+            source.max_lines_per_file,
+        )
+        .await
+        {
             Ok(ctx) => Some(ctx),
             Err(e) => {
                 if json {
@@ -111,7 +118,11 @@ pub async fn run(target: GenTarget, source: GenSource, json: bool) {
     } else if let Some(ref ctx) = figma_ctx {
         sanitize(&ctx.file_name)
     } else {
-        source.file.as_deref().map(sanitize).unwrap_or_else(|| "output".to_string())
+        source
+            .file
+            .as_deref()
+            .map(sanitize)
+            .unwrap_or_else(|| "output".to_string())
     };
 
     if json {
@@ -122,7 +133,8 @@ pub async fn run(target: GenTarget, source: GenSource, json: bool) {
 
         if let Some(ref ctx) = gitlab_ctx {
             payload["source"] = serde_json::json!("gitlab");
-            payload["repo_url"] = serde_json::Value::String(source.repo_url.clone().unwrap_or_default());
+            payload["repo_url"] =
+                serde_json::Value::String(source.repo_url.clone().unwrap_or_default());
             payload["repo_file"] = serde_json::json!(source.repo_file);
             payload["gitlab_context"] = serde_json::json!(ctx);
         }
@@ -130,15 +142,17 @@ pub async fn run(target: GenTarget, source: GenSource, json: bool) {
             payload["figma_context"] = serde_json::json!(ctx);
         }
         if gitlab_ctx.is_none() && figma_ctx.is_none() {
-            payload["source"] = serde_json::Value::String(
-                source.file.clone().unwrap_or_default(),
-            );
+            payload["source"] = serde_json::Value::String(source.file.clone().unwrap_or_default());
         }
 
         println!("{}", payload);
     } else {
         if let Some(ref ctx) = gitlab_ctx {
-            println!("Generating {} from GitLab repo: {}", label, source.repo_url.as_deref().unwrap_or(""));
+            println!(
+                "Generating {} from GitLab repo: {}",
+                label,
+                source.repo_url.as_deref().unwrap_or("")
+            );
             println!("  Project:        {}", ctx.project_path);
             println!("  Branch:         {}", ctx.default_branch);
             println!("  Tech stack:     {}", ctx.tech_stack.join(", "));

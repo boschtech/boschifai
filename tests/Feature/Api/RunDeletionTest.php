@@ -8,6 +8,7 @@ use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\RunArtifact;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class RunDeletionTest extends TestCase
@@ -40,7 +41,7 @@ class RunDeletionTest extends TestCase
 
     public function test_deleting_an_unknown_run_returns_404(): void
     {
-        $this->deleteJson('/api/runs/'.\Illuminate\Support\Str::uuid())->assertNotFound();
+        $this->deleteJson('/api/runs/'.Str::uuid())->assertNotFound();
     }
 
     public function test_deleting_a_draft_run_with_no_worktree_still_succeeds(): void

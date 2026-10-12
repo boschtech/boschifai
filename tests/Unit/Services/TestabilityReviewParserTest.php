@@ -12,7 +12,7 @@ class TestabilityReviewParserTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->parser = new TestabilityReviewParser();
+        $this->parser = new TestabilityReviewParser;
     }
 
     public function test_extracts_score_from_the_real_header_table_format(): void
@@ -20,7 +20,7 @@ class TestabilityReviewParserTest extends TestCase
         // Exact format confirmed against a real generated report during the plan's
         // verification spike — do not "clean up" this format assumption without re-confirming
         // against a live /boschifai-review output.
-        $markdown = <<<MD
+        $markdown = <<<'MD'
         # Testability Review — Custom Field Validation on Create
 
         | | |

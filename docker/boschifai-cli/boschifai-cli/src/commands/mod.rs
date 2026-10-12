@@ -1,7 +1,7 @@
 pub mod api_test;
-pub mod figma;
 pub mod data;
 pub mod defect;
+pub mod figma;
 pub mod gen;
 pub mod init;
 pub mod plan;

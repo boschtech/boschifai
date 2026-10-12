@@ -20,9 +20,7 @@ use RuntimeException;
  */
 class BranchAndCommitService
 {
-    public function __construct(private GithubOAuthService $githubAuth)
-    {
-    }
+    public function __construct(private GithubOAuthService $githubAuth) {}
 
     public function createBranchCommitAndPush(Run $run, string $worktreePath): string
     {

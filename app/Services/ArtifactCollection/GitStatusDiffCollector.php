@@ -101,10 +101,10 @@ class GitStatusDiffCollector
 
     /**
      * @return array<string, string> relativePath => classified kind value, for paths that
-     *                                matched a known convention. Unmatched new paths (e.g.
-     *                                boschifai init's own scaffolding, if the caller's baseline was
-     *                                taken too early) are silently excluded, not errored —
-     *                                see RunWorkspaceManager::prepare()'s baseline-timing note.
+     *                               matched a known convention. Unmatched new paths (e.g.
+     *                               boschifai init's own scaffolding, if the caller's baseline was
+     *                               taken too early) are silently excluded, not errored —
+     *                               see RunWorkspaceManager::prepare()'s baseline-timing note.
      */
     public function classifyAll(array $newPaths): array
     {

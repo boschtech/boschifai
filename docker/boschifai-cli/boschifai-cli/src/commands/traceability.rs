@@ -42,10 +42,7 @@ pub async fn generate(file_path: Option<&str>, jira_key: Option<&str>, json: boo
                         "Generating traceability matrix from Jira issue: {} ({})",
                         issue.key, issue.summary
                     );
-                    println!(
-                        "  Output: traceability_{}.md",
-                        issue.key.to_lowercase()
-                    );
+                    println!("  Output: traceability_{}.md", issue.key.to_lowercase());
                 }
             }
             Err(e) => {

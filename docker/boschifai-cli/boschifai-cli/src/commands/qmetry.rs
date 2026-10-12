@@ -62,7 +62,11 @@ pub async fn publish(
                     .unwrap()
                 );
             } else {
-                println!("Published {} test case(s) to QMetry: {}", created.len(), keys.join(", "));
+                println!(
+                    "Published {} test case(s) to QMetry: {}",
+                    created.len(),
+                    keys.join(", ")
+                );
             }
         }
         Err(e) => {
@@ -80,10 +84,12 @@ fn read_input(file: Option<&str>) -> String {
         }),
         None => {
             let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf).unwrap_or_else(|e| {
-                eprintln!("Error reading stdin: {e}");
-                std::process::exit(1);
-            });
+            std::io::stdin()
+                .read_to_string(&mut buf)
+                .unwrap_or_else(|e| {
+                    eprintln!("Error reading stdin: {e}");
+                    std::process::exit(1);
+                });
             buf
         }
     }
@@ -100,7 +106,9 @@ fn parse_test_cases(raw: &str) -> Vec<TestCase> {
     } else if let Some(arr) = value.get("test_cases") {
         arr.clone()
     } else {
-        eprintln!("Error: expected a JSON array of test cases or an object with a \"test_cases\" key.");
+        eprintln!(
+            "Error: expected a JSON array of test cases or an object with a \"test_cases\" key."
+        );
         std::process::exit(1);
     };
 

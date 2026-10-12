@@ -5,7 +5,10 @@ mod integrations;
 use clap::{ArgAction, Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "boschifai", about = "Boschifai - Software Quality Lifecycle Management")]
+#[command(
+    name = "boschifai",
+    about = "Boschifai - Software Quality Lifecycle Management"
+)]
 struct Cli {
     /// Output results as JSON
     #[arg(long, global = true, env = "BOSCHIFAI_JSON", action = ArgAction::SetTrue)]
@@ -470,18 +473,32 @@ async fn main() {
 
     match cli.command {
         Commands::Requirements { action } => match action {
-            RequirementsAction::Review { file_path, jira_key } => {
-                commands::requirements::review(file_path.as_deref(), jira_key.as_deref(), json).await;
+            RequirementsAction::Review {
+                file_path,
+                jira_key,
+            } => {
+                commands::requirements::review(file_path.as_deref(), jira_key.as_deref(), json)
+                    .await;
             }
         },
         Commands::Strategy { action } => match action {
-            StrategyAction::Create { file, requirement, jira_key } => {
+            StrategyAction::Create {
+                file,
+                requirement,
+                jira_key,
+            } => {
                 let source = file.or(requirement);
                 commands::strategy::create(source.as_deref(), jira_key.as_deref(), json).await;
             }
         },
         Commands::TestCase { action } => match action {
-            TestCaseAction::Generate { file, requirement, jira_key, qmetry_folder_url, qmetry_api_key } => {
+            TestCaseAction::Generate {
+                file,
+                requirement,
+                jira_key,
+                qmetry_folder_url,
+                qmetry_api_key,
+            } => {
                 let source = file.or(requirement);
                 commands::test_case::generate(
                     source.as_deref(),
@@ -489,7 +506,8 @@ async fn main() {
                     qmetry_folder_url.as_deref(),
                     qmetry_api_key.as_deref(),
                     json,
-                ).await;
+                )
+                .await;
             }
         },
         Commands::Plan { action } => match action {
@@ -523,71 +541,146 @@ async fn main() {
             }
         },
         Commands::Gen { action } => match action {
-            GenAction::Unit { file, repo_url, repo_file, repo_branch, filter_level, max_lines_per_file } => {
+            GenAction::Unit {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::Unit,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url: None,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url: None,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
-            GenAction::E2e { file, repo_url, repo_file, repo_branch, figma_url, filter_level, max_lines_per_file } => {
+            GenAction::E2e {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                figma_url,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::E2e,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
-            GenAction::Component { file, repo_url, repo_file, repo_branch, figma_url, filter_level, max_lines_per_file } => {
+            GenAction::Component {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                figma_url,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::Component,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
-            GenAction::ApiContract { file, repo_url, repo_file, repo_branch, filter_level, max_lines_per_file } => {
+            GenAction::ApiContract {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::ApiContract,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url: None,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url: None,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
-            GenAction::Performance { file, repo_url, repo_file, repo_branch, filter_level, max_lines_per_file } => {
+            GenAction::Performance {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::Performance,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url: None,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url: None,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
-            GenAction::Storybook { file, repo_url, repo_file, repo_branch, figma_url, filter_level, max_lines_per_file } => {
+            GenAction::Storybook {
+                file,
+                repo_url,
+                repo_file,
+                repo_branch,
+                figma_url,
+                filter_level,
+                max_lines_per_file,
+            } => {
                 commands::gen::run(
                     commands::gen::GenTarget::Storybook,
                     commands::gen::GenSource {
-                        file, repo_url, repo_file, repo_branch, figma_url,
+                        file,
+                        repo_url,
+                        repo_file,
+                        repo_branch,
+                        figma_url,
                         filter_level: filter_level.parse().unwrap_or_default(),
                         max_lines_per_file,
                     },
                     json,
-                ).await;
+                )
+                .await;
             }
         },
         Commands::Report { action } => match action {
@@ -605,8 +698,18 @@ async fn main() {
             commands::figma::run(action, json).await;
         }
         Commands::Qmetry { action } => match action {
-            QMetryAction::Publish { file, folder_url, api_key } => {
-                commands::qmetry::publish(file.as_deref(), folder_url.as_deref(), api_key.as_deref(), json).await;
+            QMetryAction::Publish {
+                file,
+                folder_url,
+                api_key,
+            } => {
+                commands::qmetry::publish(
+                    file.as_deref(),
+                    folder_url.as_deref(),
+                    api_key.as_deref(),
+                    json,
+                )
+                .await;
             }
         },
     }

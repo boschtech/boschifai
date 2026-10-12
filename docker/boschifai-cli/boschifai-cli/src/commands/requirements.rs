@@ -50,7 +50,10 @@ pub async fn review(file_path: Option<&str>, jira_key: Option<&str>, json: bool)
                         if !issue.labels.is_empty() {
                             println!("  Labels:      {}", issue.labels.join(", "));
                         }
-                        println!("\n  Description:\n  {}", issue.description.replace('\n', "\n  "));
+                        println!(
+                            "\n  Description:\n  {}",
+                            issue.description.replace('\n', "\n  ")
+                        );
                     }
                 }
                 Err(e) => {

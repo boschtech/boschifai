@@ -61,14 +61,12 @@ class HeadlessClaudeInvoker
         'mcp__github__create_pull_request',
     ];
 
-    public function __construct(private ClaudeTranscriptParser $parser)
-    {
-    }
+    public function __construct(private ClaudeTranscriptParser $parser) {}
 
     /**
-     * @param callable(): bool $isCancelled polled periodically while the process runs; when it
-     *                                       returns true the process is stopped and the result
-     *                                       carries `cancelled: true` instead of a failure.
+     * @param  callable(): bool  $isCancelled  polled periodically while the process runs; when it
+     *                                         returns true the process is stopped and the result
+     *                                         carries `cancelled: true` instead of a failure.
      */
     public function invoke(
         string $worktreePath,

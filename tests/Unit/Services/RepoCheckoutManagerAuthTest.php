@@ -46,7 +46,7 @@ class RepoCheckoutManagerAuthTest extends TestCase
             'git_remote_path' => '/tmp/does-not-matter', 'base_branch' => 'prod',
         ]);
 
-        $path = (new RepoCheckoutManager(new GithubOAuthService()))->ensureReady($repo);
+        $path = (new RepoCheckoutManager(new GithubOAuthService))->ensureReady($repo);
 
         $this->assertSame('/tmp/does-not-matter', $path);
         Process::assertNothingRan();
@@ -67,7 +67,7 @@ class RepoCheckoutManagerAuthTest extends TestCase
             'github_owner' => 'acme',
         ]);
 
-        (new RepoCheckoutManager(new GithubOAuthService()))->ensureReady($repo);
+        (new RepoCheckoutManager(new GithubOAuthService))->ensureReady($repo);
 
         Process::assertRan(fn ($process) => in_array(
             'https://gho_faketoken@github.com/acme/backend.git', $process->command, true
@@ -89,7 +89,7 @@ class RepoCheckoutManagerAuthTest extends TestCase
             'github_owner' => 'acme',
         ]);
 
-        (new RepoCheckoutManager(new GithubOAuthService()))->ensureReady($repo);
+        (new RepoCheckoutManager(new GithubOAuthService))->ensureReady($repo);
 
         Process::assertRan(fn ($process) => $process->command === [
             'git', 'remote', 'set-url', 'origin', 'https://github.com/acme/backend.git',
@@ -117,7 +117,7 @@ class RepoCheckoutManagerAuthTest extends TestCase
         ]);
 
         try {
-            (new RepoCheckoutManager(new GithubOAuthService()))->ensureReady($repo);
+            (new RepoCheckoutManager(new GithubOAuthService))->ensureReady($repo);
             $this->fail('Expected the clone to fail against an unroutable host.');
         } catch (\RuntimeException $e) {
             $this->assertStringNotContainsString('gho_realtokenvalue', $e->getMessage());

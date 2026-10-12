@@ -22,10 +22,7 @@ pub async fn review(file_path: Option<&str>, jira_key: Option<&str>, json: bool)
                 );
             } else {
                 println!("Reviewing testability of: {}", path);
-                println!(
-                    "  Output: testability_review_{}.md",
-                    sanitize(path)
-                );
+                println!("  Output: testability_review_{}.md", sanitize(path));
             }
         }
         (None, Some(key)) => match jira::fetch_issue(key).await {

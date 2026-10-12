@@ -54,8 +54,8 @@ fn load_config() -> Result<JiraConfig, JiraError> {
 
     let story_points_field = env::var("BOSCHIFAI_JIRA_STORY_POINTS_FIELD")
         .unwrap_or_else(|_| "customfield_10028".into());
-    let epic_link_field = env::var("BOSCHIFAI_JIRA_EPIC_LINK_FIELD")
-        .unwrap_or_else(|_| "customfield_10014".into());
+    let epic_link_field =
+        env::var("BOSCHIFAI_JIRA_EPIC_LINK_FIELD").unwrap_or_else(|_| "customfield_10014".into());
 
     let allowed_types = env::var("BOSCHIFAI_JIRA_ALLOWED_TYPES")
         .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
@@ -77,10 +77,7 @@ fn load_config() -> Result<JiraConfig, JiraError> {
 pub async fn fetch_issue(key: &str) -> Result<JiraIssueSource, JiraError> {
     let config = load_config()?;
 
-    let url = format!(
-        "{}/rest/api/2/issue/{}",
-        config.base_url, key
-    );
+    let url = format!("{}/rest/api/2/issue/{}", config.base_url, key);
 
     let client = reqwest::Client::new();
     let response = client
@@ -115,7 +112,8 @@ pub async fn fetch_issue(key: &str) -> Result<JiraIssueSource, JiraError> {
         .await
         .map_err(|e| JiraError::ParseError(e.to_string()))?;
 
-    let fields = body.get("fields")
+    let fields = body
+        .get("fields")
         .ok_or_else(|| JiraError::ParseError("missing 'fields' in response".into()))?;
 
     let issue_type = fields

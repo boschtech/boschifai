@@ -94,7 +94,7 @@ class LocalTestRunnerRecipeTest extends TestCase
     public function test_recipe_placeholders_are_substituted_into_the_job_command(): void
     {
         $run = $this->makeRun();
-        $junitXml = <<<XML
+        $junitXml = <<<'XML'
         <?xml version="1.0"?>
         <testsuites>
             <testsuite>
@@ -104,7 +104,7 @@ class LocalTestRunnerRecipeTest extends TestCase
         XML;
         $this->simulateSidecar($run, junitXml: $junitXml);
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $recipe = [
             'install_command' => 'pip install -r requirements.txt',
             'test_command' => 'pytest {{TEST_FILE}} --junitxml={{JUNIT_PATH}}',
@@ -128,12 +128,12 @@ class LocalTestRunnerRecipeTest extends TestCase
     public function test_no_recipe_falls_back_to_the_hardcoded_composer_phpunit_command(): void
     {
         $run = $this->makeRun();
-        $this->simulateSidecar($run, junitXml: <<<XML
+        $this->simulateSidecar($run, junitXml: <<<'XML'
         <?xml version="1.0"?>
         <testsuites><testsuite></testsuite></testsuites>
         XML);
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $runner->run($run, $this->checkoutPath, 'tests/Feature/BillingTest.php', fn () => false);
 
         $expectedJunitRelative = ".boschifai/junit-{$run->id}.xml";
@@ -150,14 +150,14 @@ class LocalTestRunnerRecipeTest extends TestCase
     {
         $run = $this->makeRun(); // target_file_path defaults to 'src/billing.py' in makeRun()
         $run->update(['target_file_path' => 'app/Http/Controllers/BillingController.php']);
-        $this->simulateSidecar($run, junitXml: <<<XML
+        $this->simulateSidecar($run, junitXml: <<<'XML'
         <?xml version="1.0"?>
         <testsuites><testsuite></testsuite></testsuites>
         XML);
         File::ensureDirectoryExists("{$this->checkoutPath}/coverage-report/app/Http/Controllers");
         File::put("{$this->checkoutPath}/coverage-report/app/Http/Controllers/BillingController.php.html", '<html></html>');
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $result = $runner->run($run, $this->checkoutPath, 'tests/Feature/BillingControllerTest.php', fn () => false);
 
         $this->assertSame('app/Http/Controllers/BillingController.php.html', $result['coverage_report_path']);
@@ -167,13 +167,13 @@ class LocalTestRunnerRecipeTest extends TestCase
     {
         $run = $this->makeRun();
         $run->update(['target_file_path' => 'app/Http/Controllers/BillingController.php']);
-        $this->simulateSidecar($run, junitXml: <<<XML
+        $this->simulateSidecar($run, junitXml: <<<'XML'
         <?xml version="1.0"?>
         <testsuites><testsuite></testsuite></testsuites>
         XML);
         // No coverage-report/ directory written at all — e.g. no coverage driver available.
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $result = $runner->run($run, $this->checkoutPath, 'tests/Feature/BillingControllerTest.php', fn () => false);
 
         $this->assertNull($result['coverage_report_path']);
@@ -183,7 +183,7 @@ class LocalTestRunnerRecipeTest extends TestCase
     {
         $run = $this->makeRun();
         $run->update(['target_file_path' => 'app/Http/Controllers/BillingController.php']);
-        $this->simulateSidecar($run, junitXml: <<<XML
+        $this->simulateSidecar($run, junitXml: <<<'XML'
         <?xml version="1.0"?>
         <testsuites><testsuite></testsuite></testsuites>
         XML);
@@ -193,7 +193,7 @@ class LocalTestRunnerRecipeTest extends TestCase
         File::ensureDirectoryExists("{$this->checkoutPath}/coverage-report/app/Http/Controllers");
         File::put("{$this->checkoutPath}/coverage-report/app/Http/Controllers/BillingController.php.html", '<html></html>');
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $recipe = ['install_command' => 'true', 'test_command' => 'pytest {{TEST_FILE}} --junitxml={{JUNIT_PATH}}'];
         $result = $runner->run($run, $this->checkoutPath, 'tests/test_billing.py', fn () => false, $recipe);
 
@@ -212,14 +212,14 @@ class LocalTestRunnerRecipeTest extends TestCase
     {
         $run = $this->makeRun();
         $run->update(['target_file_path' => 'app/Http/Controllers/BillingController.php']);
-        $this->simulateSidecar($run, junitXml: <<<XML
+        $this->simulateSidecar($run, junitXml: <<<'XML'
         <?xml version="1.0"?>
         <testsuites><testsuite></testsuite></testsuites>
         XML);
         File::ensureDirectoryExists("{$this->checkoutPath}/coverage-report/app/Http/Controllers");
         File::put("{$this->checkoutPath}/coverage-report/app/Http/Controllers/BillingController.php.html", '<html></html>');
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $recipe = ['install_command' => 'composer install', 'test_command' => 'php artisan test {{TEST_FILE}} --log-junit {{JUNIT_PATH}}'];
         $result = $runner->run($run, $this->checkoutPath, 'tests/Feature/BillingControllerTest.php', fn () => false, $recipe);
 
@@ -232,7 +232,7 @@ class LocalTestRunnerRecipeTest extends TestCase
         $run = $this->makeRun();
         $this->simulateSidecar($run, cancelled: true);
 
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
         $result = $runner->run($run, $this->checkoutPath, 'tests/Feature/BillingTest.php', fn () => true);
 
         $this->assertTrue($result['cancelled']);
@@ -242,7 +242,7 @@ class LocalTestRunnerRecipeTest extends TestCase
     public function test_log_path_lives_on_the_shared_jobs_volume_not_local_storage(): void
     {
         $run = $this->makeRun();
-        $runner = new LocalTestRunner(new JunitXmlParser());
+        $runner = new LocalTestRunner(new JunitXmlParser);
 
         $this->assertSame("{$this->jobsDir}/{$run->id}.log", $runner->logPathFor($run->id));
     }

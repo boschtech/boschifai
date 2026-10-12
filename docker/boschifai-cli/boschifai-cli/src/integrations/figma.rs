@@ -1,4 +1,6 @@
-use boschifai_core::models::{FigmaComponent, FigmaContext, FigmaFrame, FigmaImageExport, FigmaStyle};
+use boschifai_core::models::{
+    FigmaComponent, FigmaContext, FigmaFrame, FigmaImageExport, FigmaStyle,
+};
 use serde_json::Value;
 use std::env;
 
@@ -81,11 +83,7 @@ fn timeout_ms() -> u64 {
         .unwrap_or(30_000)
 }
 
-async fn get_json(
-    client: &reqwest::Client,
-    url: &str,
-    token: &str,
-) -> Result<Value, FigmaError> {
+async fn get_json(client: &reqwest::Client, url: &str, token: &str) -> Result<Value, FigmaError> {
     let response = client
         .get(url)
         .header("X-Figma-Token", token)
@@ -297,9 +295,8 @@ pub async fn fetch_figma_context(
                 .map(|f| f.id.as_str())
                 .collect::<Vec<_>>()
                 .join(",");
-            let images_url = format!(
-                "https://api.figma.com/v1/images/{file_key}?ids={ids_param}&format=png"
-            );
+            let images_url =
+                format!("https://api.figma.com/v1/images/{file_key}?ids={ids_param}&format=png");
 
             if let Ok(images_doc) = get_json(&client, &images_url, &token).await {
                 if let Some(images_map) = images_doc.get("images").and_then(|v| v.as_object()) {

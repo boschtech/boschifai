@@ -42,10 +42,7 @@ pub async fn generate(file_path: Option<&str>, jira_key: Option<&str>, json: boo
                         "Generating test data specification from Jira issue: {} ({})",
                         issue.key, issue.summary
                     );
-                    println!(
-                        "  Output: test_data_{}.md",
-                        issue.key.to_lowercase()
-                    );
+                    println!("  Output: test_data_{}.md", issue.key.to_lowercase());
                 }
             }
             Err(e) => {

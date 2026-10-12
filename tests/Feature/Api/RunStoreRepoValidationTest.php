@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\RunState;
 use App\Jobs\RunGapAnalysisJob;
 use App\Models\RepoConfig;
+use App\Models\Run;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -63,9 +65,9 @@ class RunStoreRepoValidationTest extends TestCase
             'name' => 'backend', 'display_name' => 'acme/backend',
             'git_remote_path' => 'https://github.com/acme/backend.git', 'base_branch' => 'main',
         ]);
-        \App\Models\Run::create([
+        Run::create([
             'repo_config_id' => $repo->id, 'requirement_text' => 'first', 'target_file_path' => 'x.php',
-            'state' => \App\Enums\RunState::GapAnalysisRunning,
+            'state' => RunState::GapAnalysisRunning,
         ]);
 
         $this->postJson('/api/runs', [

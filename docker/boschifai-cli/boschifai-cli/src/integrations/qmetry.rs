@@ -85,7 +85,9 @@ pub fn load_config(
         .ok_or(QMetryError::MissingProject)?;
 
     let resolved_folder_id = folder_id.or_else(|| {
-        env::var("BOSCHIFAI_QMETRY_FOLDER_ID").ok().and_then(|v| v.trim().parse().ok())
+        env::var("BOSCHIFAI_QMETRY_FOLDER_ID")
+            .ok()
+            .and_then(|v| v.trim().parse().ok())
     });
 
     Ok(QMetryConfig {
@@ -101,9 +103,10 @@ pub fn load_config(
 pub fn parse_folder_url(url: &str) -> Result<(u64, u64), QMetryError> {
     let fragment = url.split_once('#').map(|(_, f)| f).unwrap_or("");
     // Handle both `#/?key=val` and `#/Path/To/Page?key=val`
-    let query = fragment.split_once('?').map(|(_, q)| q).unwrap_or(
-        fragment.trim_start_matches('/').trim_start_matches('?')
-    );
+    let query = fragment
+        .split_once('?')
+        .map(|(_, q)| q)
+        .unwrap_or(fragment.trim_start_matches('/').trim_start_matches('?'));
 
     let mut folder_id: Option<u64> = None;
     let mut project_id: Option<u64> = None;
@@ -111,7 +114,7 @@ pub fn parse_folder_url(url: &str) -> Result<(u64, u64), QMetryError> {
     for pair in query.split('&') {
         if let Some((key, value)) = pair.split_once('=') {
             match key {
-                "folderId"  => folder_id  = value.parse().ok(),
+                "folderId" => folder_id = value.parse().ok(),
                 "projectId" => project_id = value.parse().ok(),
                 _ => {}
             }
@@ -145,7 +148,10 @@ pub async fn push_test_cases(
 
         if debug {
             eprintln!("[QMetry] POST {create_url}");
-            eprintln!("[QMetry] Payload: {}", serde_json::to_string_pretty(&body).unwrap_or_default());
+            eprintln!(
+                "[QMetry] Payload: {}",
+                serde_json::to_string_pretty(&body).unwrap_or_default()
+            );
         }
 
         let response = client
@@ -190,15 +196,18 @@ pub async fn push_test_cases(
 fn automation_type_id(tc: &TestCase) -> &'static str {
     match tc.automation_type.as_deref() {
         Some("automation_candidate") => "683",
-        Some("automated")            => "682",
-        _                            => "681",
+        Some("automated") => "682",
+        _ => "681",
     }
 }
 
 fn build_payload(config: &QMetryConfig, tc: &TestCase) -> serde_json::Value {
     let last = tc.steps.len().saturating_sub(1);
-    let steps: Vec<serde_json::Value> = tc.steps.iter().enumerate().map(|(i, step)| {
-        match step {
+    let steps: Vec<serde_json::Value> = tc
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, step)| match step {
             TestStep::Simple(text) => json!({
                 "stepDetails": text,
                 "expectedResult": if i == last { tc.expected_result.as_str() } else { "" },
@@ -206,7 +215,11 @@ fn build_payload(config: &QMetryConfig, tc: &TestCase) -> serde_json::Value {
                 "isChecked": false,
                 "isExpanded": true,
             }),
-            TestStep::Detailed { step_details, test_data, expected_result } => json!({
+            TestStep::Detailed {
+                step_details,
+                test_data,
+                expected_result,
+            } => json!({
                 "stepDetails": step_details,
                 "expectedResult": expected_result.as_deref()
                     .unwrap_or(if i == last { tc.expected_result.as_str() } else { "" }),
@@ -214,8 +227,8 @@ fn build_payload(config: &QMetryConfig, tc: &TestCase) -> serde_json::Value {
                 "isChecked": false,
                 "isExpanded": true,
             }),
-        }
-    }).collect();
+        })
+        .collect();
 
     let mut payload = json!({
         "summary": tc.title,
@@ -229,14 +242,30 @@ fn build_payload(config: &QMetryConfig, tc: &TestCase) -> serde_json::Value {
     if let Some(folder_id) = config.folder_id {
         payload["folderId"] = json!(folder_id.to_string());
     }
-    if let Some(v) = &tc.description  { payload["description"]  = json!(v); }
-    if let Some(v) = &tc.precondition { payload["precondition"]  = json!(v); }
-    if let Some(v) = tc.priority      { payload["priority"]      = json!(v); }
-    if let Some(v) = tc.status        { payload["status"]        = json!(v); }
-    if let Some(v) = &tc.assignee     { payload["assignee"]      = json!(v); }
-    if let Some(v) = &tc.reporter     { payload["reporter"]      = json!(v); }
-    if let Some(v) = &tc.components   { payload["components"]    = json!(v); }
-    if let Some(v) = &tc.labels       { payload["labels"]        = json!(v); }
+    if let Some(v) = &tc.description {
+        payload["description"] = json!(v);
+    }
+    if let Some(v) = &tc.precondition {
+        payload["precondition"] = json!(v);
+    }
+    if let Some(v) = tc.priority {
+        payload["priority"] = json!(v);
+    }
+    if let Some(v) = tc.status {
+        payload["status"] = json!(v);
+    }
+    if let Some(v) = &tc.assignee {
+        payload["assignee"] = json!(v);
+    }
+    if let Some(v) = &tc.reporter {
+        payload["reporter"] = json!(v);
+    }
+    if let Some(v) = &tc.components {
+        payload["components"] = json!(v);
+    }
+    if let Some(v) = &tc.labels {
+        payload["labels"] = json!(v);
+    }
 
     payload
 }

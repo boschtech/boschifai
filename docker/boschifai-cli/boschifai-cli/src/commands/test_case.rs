@@ -26,25 +26,23 @@ pub async fn generate(
             let test_cases = run_generation(&requirement, json).await;
             output_and_push(test_cases, qmetry_folder_url, qmetry_api_key, json).await;
         }
-        (None, Some(key)) => {
-            match jira::fetch_issue(key).await {
-                Ok(issue) => {
-                    let requirement = issue.to_requirement();
-                    if !json {
-                        println!(
-                            "Generating test cases from Jira issue: {} ({})",
-                            issue.key, issue.summary
-                        );
-                    }
-                    let test_cases = run_generation(&requirement, json).await;
-                    output_and_push(test_cases, qmetry_folder_url, qmetry_api_key, json).await;
+        (None, Some(key)) => match jira::fetch_issue(key).await {
+            Ok(issue) => {
+                let requirement = issue.to_requirement();
+                if !json {
+                    println!(
+                        "Generating test cases from Jira issue: {} ({})",
+                        issue.key, issue.summary
+                    );
                 }
-                Err(e) => {
-                    eprintln!("Error: {e}");
-                    std::process::exit(1);
-                }
+                let test_cases = run_generation(&requirement, json).await;
+                output_and_push(test_cases, qmetry_folder_url, qmetry_api_key, json).await;
             }
-        }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        },
     }
 }
 
@@ -67,8 +65,8 @@ async fn output_and_push(
     qmetry_api_key: Option<&str>,
     json: bool,
 ) {
-    let wants_push = qmetry_folder_url.is_some()
-        || std::env::var("BOSCHIFAI_QMETRY_FOLDER_URL").is_ok();
+    let wants_push =
+        qmetry_folder_url.is_some() || std::env::var("BOSCHIFAI_QMETRY_FOLDER_URL").is_ok();
 
     if wants_push {
         // Resolve folder URL: CLI flag takes precedence over env var
@@ -124,7 +122,11 @@ async fn output_and_push(
                         });
                         println!("{}", serde_json::to_string_pretty(&out).unwrap());
                     } else {
-                        println!("Pushed {} test case(s) to QMetry: {}", created.len(), keys.join(", "));
+                        println!(
+                            "Pushed {} test case(s) to QMetry: {}",
+                            created.len(),
+                            keys.join(", ")
+                        );
                     }
                 }
                 Err(e) => {
@@ -143,7 +145,10 @@ async fn output_and_push(
 }
 
 fn print_test_cases(test_cases: &[TestCase]) {
-    println!("Successfully generated {} test case(s):\n", test_cases.len());
+    println!(
+        "Successfully generated {} test case(s):\n",
+        test_cases.len()
+    );
     for tc in test_cases {
         println!("  [{}] {}", tc.id, tc.title);
         for (i, step) in tc.steps.iter().enumerate() {

@@ -89,16 +89,18 @@ class HeadlessClaudeInvokerTest extends TestCase
     {
         $_SERVER['DB_PASSWORD'] = 'db-secret';
         $_ENV['APP_KEY'] = 'base64:app-secret';
+        $_SERVER['BOSCHIFAI_CREDENTIALS_KEY'] = 'base64:credentials-secret';
         Process::fake();
 
         try {
             $this->invoker()->invoke($this->dir, 'gen', $this->dir.'/a.jsonl', 60, fn () => false, $this->credentials(), 'code_generation');
         } finally {
-            unset($_SERVER['DB_PASSWORD'], $_ENV['APP_KEY']);
+            unset($_SERVER['DB_PASSWORD'], $_ENV['APP_KEY'], $_SERVER['BOSCHIFAI_CREDENTIALS_KEY']);
         }
 
         Process::assertRan(fn ($process) => $process->environment['DB_PASSWORD'] === false
             && $process->environment['APP_KEY'] === false
+            && $process->environment['BOSCHIFAI_CREDENTIALS_KEY'] === false
             && $process->environment['ANTHROPIC_API_KEY'] === 'sk-test'
             && ! in_array('db-secret', $process->environment, true)
             && in_array('--strict-mcp-config', $process->command, true)

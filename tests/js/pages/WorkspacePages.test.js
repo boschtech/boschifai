@@ -321,11 +321,13 @@ describe('SidebarNav — settings', () => {
         await mountNav(true);
         expect(wrapper.find('a[href="/settings/workspace"]').text()).toBe('Workspace');
         expect(wrapper.find('a[href="/billing"]').text()).toBe('Billing');
+        expect(wrapper.find('a[href="/settings/ai-provider"]').text()).toBe('AI provider');
         wrapper.destroy();
 
         await mountNav(false);
         expect(wrapper.find('a[href="/settings/workspace"]').exists()).toBe(false);
         expect(wrapper.find('a[href="/billing"]').exists()).toBe(false);
+        expect(wrapper.find('a[href="/settings/ai-provider"]').exists()).toBe(false);
         expect(wrapper.findAll('h2').wrappers.map((h) => h.text())).not.toContain('Settings');
     });
 });

@@ -48,3 +48,5 @@ Owner = who has to make the call, not who implements it.
 | — | Credit currency | USD (1 credit = US$1) | 2026-10-12 |
 | — | Payment providers | Support Stripe, Paystack and PayFast behind one interface (order: D1) | 2026-10-12 |
 | — | Laravel version | Upgraded to 12 (fixes the email-rule CRLF advisory) | 2026-10-12 |
+| D17 | Encryption of stored provider keys | A dedicated key, `BOSCHIFAI_CREDENTIALS_KEY` (AES-256-GCM), with previous-key support and `boschifai:rotate-credentials-key` | 2026-10-13 |
+| D18 | Platform fee for runs on a workspace's own key | No fee — own-key runs aren't charged | 2026-10-13 |

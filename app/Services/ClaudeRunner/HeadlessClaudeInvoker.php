@@ -197,7 +197,7 @@ class HeadlessClaudeInvoker
                 'cache_creation_input_tokens' => null, 'cache_read_input_tokens' => null,
                 'error_message' => null,
             ]
-            : $this->parser->parseSummary($transcriptPath);
+            : $this->parser->parseSummary($transcriptPath, $credentials->source);
 
         return new ClaudeInvocationResult(
             exitCode: $exitCode,

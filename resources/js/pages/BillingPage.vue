@@ -13,6 +13,12 @@
         <p v-else-if="error" class="text-sm text-danger" role="alert">{{ error }}</p>
 
         <template v-else-if="billing">
+            <p v-if="billing.uses_own_ai_key" class="mb-6 rounded-md border border-border bg-surface-alt p-4 text-sm text-fg" data-own-key>
+                Runs in this workspace use its own Anthropic API key, so they don't use credits — Anthropic
+                bills your account directly. Manage it under
+                <router-link :to="{ name: 'settings.ai-provider' }" class="text-primary underline">AI provider</router-link>.
+            </p>
+
             <section class="mb-8 rounded-md border border-border bg-surface p-4" data-balance>
                 <p class="text-sm text-fg-muted">Available credits</p>
                 <p class="text-2xl font-bold text-fg-strong">{{ money(billing.available_usd) }}</p>

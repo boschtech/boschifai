@@ -117,6 +117,7 @@ export function makeLocalVueWithRouter({ path = '/', query = {}, routes = [] } =
             { path: '/account', name: 'account' },
             { path: '/invitations/:token', name: 'invitations.show', meta: { public: true } },
             { path: '/settings/workspace', name: 'settings.workspace', meta: { requiresManage: true } },
+            { path: '/settings/ai-provider', name: 'settings.ai-provider', meta: { requiresManage: true } },
             { path: '/billing', name: 'billing', meta: { requiresManage: true } },
             { path: '/billing/payments/:id', name: 'billing.payment', meta: { requiresManage: true } },
             ...routes,

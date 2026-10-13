@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Enums\ClaudeCredentialSource;
 use App\Services\ClaudeRunner\ClaudeTranscriptParser;
 use Tests\TestCase;
 
@@ -11,13 +12,13 @@ use Tests\TestCase;
  */
 class ClaudeTranscriptParserErrorTest extends TestCase
 {
-    private function summaryFor(array $resultEvent): array
+    private function summaryFor(array $resultEvent, ClaudeCredentialSource $source = ClaudeCredentialSource::Platform): array
     {
         $path = tempnam(sys_get_temp_dir(), 'transcript');
         file_put_contents($path, json_encode(['type' => 'assistant', 'message' => []])."\n".json_encode(['type' => 'result'] + $resultEvent)."\n");
 
         try {
-            return (new ClaudeTranscriptParser)->parseSummary($path);
+            return (new ClaudeTranscriptParser)->parseSummary($path, $source);
         } finally {
             unlink($path);
         }
@@ -61,6 +62,24 @@ class ClaudeTranscriptParserErrorTest extends TestCase
     {
         $this->assertStringContainsString('rate limit', $this->summaryFor(['is_error' => true, 'result' => 'Too many requests', 'api_error_status' => 429])['error_message']);
         $this->assertStringContainsString('ANTHROPIC_API_KEY', $this->summaryFor(['is_error' => true, 'result' => 'invalid x-api-key', 'api_error_status' => 401])['error_message']);
+    }
+
+    public function test_a_workspaces_own_key_failing_points_at_its_own_anthropic_account(): void
+    {
+        $own = ClaudeCredentialSource::Anthropic;
+
+        $this->assertStringStartsWith(
+            "Anthropic rejected your workspace's own API key. A workspace owner or admin can replace it under Settings → AI provider",
+            $this->summaryFor(['is_error' => true, 'result' => 'invalid x-api-key', 'api_error_status' => 401], $own)['error_message'],
+        );
+        $this->assertStringStartsWith(
+            "Your workspace's own Anthropic account has run out of credit.",
+            $this->summaryFor(['is_error' => true, 'result' => 'Your credit balance is too low', 'api_error_status' => 400], $own)['error_message'],
+        );
+        $this->assertStringStartsWith(
+            'The Anthropic API account used by BoschifAI has run out of credit.',
+            $this->summaryFor(['is_error' => true, 'result' => 'Your credit balance is too low', 'api_error_status' => 400])['error_message'],
+        );
     }
 
     public function test_an_unrecognised_api_error_keeps_the_raw_text(): void

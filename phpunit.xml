@@ -51,6 +51,8 @@
         <env name="DB_CONNECTION" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Test-only key for stored provider credentials (never used outside the test suite). -->
+        <env name="BOSCHIFAI_CREDENTIALS_KEY" value="base64:fRNrjl1BOD+vKaXwFea8wRqA9Ze0WMppWJhhthSkK3U=" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array"/>
@@ -58,5 +60,6 @@
         <server name="DB_CONNECTION" value="sqlite"/>
         <server name="DB_DATABASE" value=":memory:"/>
         <server name="QUEUE_CONNECTION" value="sync"/>
+        <server name="BOSCHIFAI_CREDENTIALS_KEY" value="base64:fRNrjl1BOD+vKaXwFea8wRqA9Ze0WMppWJhhthSkK3U="/>
     </php>
 </phpunit>

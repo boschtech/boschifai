@@ -2,11 +2,13 @@
 
 namespace App\Services\Billing;
 
+use App\Enums\ClaudeBillingMode;
 use App\Models\ClaudeInvocation;
 use App\Models\CreditLedgerEntry;
 use App\Models\InvocationCharge;
 use App\Models\Run;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
+use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use App\Support\Billing\MicroUsd;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -20,7 +22,8 @@ use RuntimeException;
  *   abandon() returns the whole hold when the step crashed before finishing
  *
  * In shadow mode (billing.enforce off) begin() reserves nothing and finish() only records what
- * would have been charged.
+ * would have been charged. A step run on the workspace's own provider account (its own Anthropic
+ * key) is never held, charged or priced — the provider bills them directly.
  */
 class StepBilling
 {
@@ -35,9 +38,9 @@ class StepBilling
     }
 
     /** @throws InsufficientCredits */
-    public function begin(Run $run, string $stepKey): ?CreditLedgerEntry
+    public function begin(Run $run, string $stepKey, ResolvedClaudeCredentials $credentials): ?CreditLedgerEntry
     {
-        if (! $this->enforced()) {
+        if (! $this->enforced() || $credentials->billingMode !== ClaudeBillingMode::Platform) {
             return null;
         }
 
@@ -53,8 +56,12 @@ class StepBilling
         return $this->ledger->hold($run->workspace, $hold, 'hold:'.Str::uuid(), $run);
     }
 
-    public function finish(Run $run, string $stepKey, ClaudeInvocation $invocation, ClaudeInvocationResult $result, ?CreditLedgerEntry $hold): InvocationCharge
+    public function finish(Run $run, string $stepKey, ClaudeInvocation $invocation, ClaudeInvocationResult $result, ?CreditLedgerEntry $hold, ResolvedClaudeCredentials $credentials): ?InvocationCharge
     {
+        if ($credentials->billingMode !== ClaudeBillingMode::Platform) {
+            return null;
+        }
+
         $outcome = $this->policy->outcomeFor($result);
         $cost = $result->totalCostUsd === null ? null : MicroUsd::parse($result->totalCostUsd);
         $holdMicro = $hold?->held_delta_micro ?? $this->policy->holdFor($stepKey);

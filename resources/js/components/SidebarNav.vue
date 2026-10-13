@@ -60,6 +60,7 @@ const SECTIONS = [
         title: 'Settings',
         links: [
             { name: 'settings.workspace', label: 'Workspace', requiresManage: true },
+            { name: 'settings.ai-provider', label: 'AI provider', requiresManage: true },
             { name: 'billing', label: 'Billing', requiresManage: true },
         ],
     },

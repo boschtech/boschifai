@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
+use App\Models\WorkspaceAiCredential;
 use App\Services\Billing\CreditLedger;
 use App\Services\Payments\PaymentProviderRegistry;
 use App\Services\Payments\PaymentService;
@@ -22,6 +23,8 @@ class BillingController extends Controller
         return response()->json(['data' => [
             'available_usd' => MicroUsd::format($balance->available_micro, 2),
             'held_usd' => MicroUsd::format($balance->held_micro, 2),
+            // Runs on the workspace's own Anthropic key don't use credits.
+            'uses_own_ai_key' => WorkspaceAiCredential::activeFor($current->id()) !== null,
             'packs' => collect(config('billing.packs'))->map(fn ($pack, $key) => [
                 'key' => $key,
                 'credits_usd' => MicroUsd::format(MicroUsd::parse($pack['credits_usd']), 2),

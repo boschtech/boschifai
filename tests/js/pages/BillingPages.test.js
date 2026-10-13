@@ -55,6 +55,14 @@ describe('BillingPage', () => {
         await mountBilling();
 
         expect(wrapper.find('[data-balance]').text()).not.toContain('reserved');
+        expect(wrapper.find('[data-own-key]').exists()).toBe(false);
+    });
+
+    it('explains that runs on the workspace\'s own key do not use credits', async () => {
+        await mountBilling({ data: billingData({ uses_own_ai_key: true }) });
+
+        expect(wrapper.find('[data-own-key]').text()).toContain("so they don't use credits");
+        expect(wrapper.find('[data-own-key] a').attributes('href')).toBe('/settings/ai-provider');
     });
 
     it('buys a USD pack by going straight to the provider', async () => {

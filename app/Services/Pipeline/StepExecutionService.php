@@ -14,6 +14,7 @@ use App\Services\Billing\InsufficientCredits;
 use App\Services\Billing\StepBilling;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
+use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use App\Services\Sandbox\RunWorkspaceManager;
 use Illuminate\Support\Facades\File;
@@ -47,28 +48,35 @@ class StepExecutionService
             return new StepOutcome(ClaudeInvocationResult::cancelledBeforeStart(), collect());
         }
 
-        try {
-            $hold = $this->billing->begin($run, $stepKey);
-        } catch (InsufficientCredits $e) {
-            return $this->awaitCredits($run, $stepKey, $e);
-        }
+        // Resolved first: whose credentials run the step decides whether credits are held at all.
+        $credentials = $this->credentials->resolveFor($run, $stepKey);
 
         try {
-            return $this->runHeld($run, $stepKey, $prompt, $timeoutSeconds, $hold);
-        } catch (\Throwable $e) {
-            // Crashed before the step could be settled: nothing is charged for it.
             try {
-                $this->billing->abandon($hold);
-            } catch (\Throwable $releaseFailure) {
-                report($releaseFailure);
+                $hold = $this->billing->begin($run, $stepKey, $credentials);
+            } catch (InsufficientCredits $e) {
+                return $this->awaitCredits($run, $stepKey, $e);
             }
 
-            throw $e;
+            try {
+                return $this->runHeld($run, $stepKey, $prompt, $timeoutSeconds, $credentials, $hold);
+            } catch (\Throwable $e) {
+                // Crashed before the step could be settled: nothing is charged for it.
+                try {
+                    $this->billing->abandon($hold);
+                } catch (\Throwable $releaseFailure) {
+                    report($releaseFailure);
+                }
+
+                throw $e;
+            }
+        } finally {
+            $credentials->cleanup();
         }
     }
 
     /** Everything after the credit hold (if any) was taken; $hold is settled exactly once. */
-    private function runHeld(Run $run, string $stepKey, string $prompt, int $timeoutSeconds, ?CreditLedgerEntry $hold): StepOutcome
+    private function runHeld(Run $run, string $stepKey, string $prompt, int $timeoutSeconds, ResolvedClaudeCredentials $credentials, ?CreditLedgerEntry $hold): StepOutcome
     {
         $step = RunStep::updateOrCreate(
             ['run_id' => $run->id, 'key' => $stepKey],
@@ -79,7 +87,6 @@ class StepExecutionService
         $before = $this->workspace->statusPaths($run);
 
         $transcriptPath = $this->invoker->transcriptPathFor($run->id, $stepKey);
-        $credentials = $this->credentials->resolveFor($run, $stepKey);
 
         // Created BEFORE invoking, not after: confirmed as a real bug via a live user report
         // — a ClaudeInvocation row (and therefore the transcript path the activity endpoint
@@ -97,19 +104,15 @@ class StepExecutionService
             'model' => $credentials->model,
         ]);
 
-        try {
-            $result = $this->invoker->invoke(
-                $checkoutPath,
-                $prompt,
-                $transcriptPath,
-                $timeoutSeconds,
-                fn () => $this->cancellation->isRequested($run->id),
-                $credentials,
-                $stepKey,
-            );
-        } finally {
-            $credentials->cleanup();
-        }
+        $result = $this->invoker->invoke(
+            $checkoutPath,
+            $prompt,
+            $transcriptPath,
+            $timeoutSeconds,
+            fn () => $this->cancellation->isRequested($run->id),
+            $credentials,
+            $stepKey,
+        );
 
         $invocation->update([
             'exit_code' => $result->exitCode,
@@ -127,7 +130,7 @@ class StepExecutionService
         // Pricing must never break a pipeline: a failure here is reported, not thrown. (When
         // enforced, the hold then stays held until boschifai:release-stale-holds returns it.)
         try {
-            $this->billing->finish($run, $stepKey, $invocation, $result, $hold);
+            $this->billing->finish($run, $stepKey, $invocation, $result, $hold, $credentials);
         } catch (\Throwable $e) {
             report($e);
         }

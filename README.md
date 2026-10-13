@@ -421,6 +421,37 @@ write path:
   (`StepExecutionService`/`HeadlessClaudeInvoker`) and nothing else ever authenticates against
   that key. Also linked directly from the header badge.
 
+### Your own Anthropic API key
+
+Owners and admins can switch a workspace onto its **own Anthropic API key** under **Settings → AI
+provider**. Its pipeline steps then run on that key: Anthropic bills the workspace's account
+directly, and no credits are held, charged or priced (usage is still recorded, with
+`credential_source = anthropic`). Other workspaces are unaffected.
+
+- The key is checked with Anthropic before it's saved — one call to the models endpoint at the
+  pinned `BOSCHIFAI_CLAUDE_API_BASE_URL`, which uses no tokens. That confirms Anthropic accepts the
+  key; it can't see whether the account has credit, so a run that hits an empty account fails
+  with a message pointing at the workspace's own Anthropic account.
+- It's stored encrypted (AES-256-GCM) with a **dedicated key, `BOSCHIFAI_CREDENTIALS_KEY`** — not
+  `APP_KEY`, so either can be rotated on its own — and never sent back (responses show a hint like
+  `…AbCd`). Like the platform key, it's redacted from transcripts and error output, and the
+  encryption key never reaches the `claude` process. Without `BOSCHIFAI_CREDENTIALS_KEY`, saving
+  an own key is refused (there's no fallback to `APP_KEY`).
+
+  ```bash
+  php artisan boschifai:generate-credentials-key   # prints a key — set it as BOSCHIFAI_CREDENTIALS_KEY (production: AWS SSM)
+  ```
+
+  Back the key up: stored keys can't be read without it. **To rotate:** set the new key, move the
+  old one to `BOSCHIFAI_CREDENTIALS_PREVIOUS_KEYS`, restart `app` and `worker`, run
+  `php artisan boschifai:rotate-credentials-key` (re-encrypts everything with the new key), then
+  remove the old key.
+- A workspace stays on its own key until someone removes it — even if a later **Check key** finds
+  it no longer works — rather than silently moving onto the platform's key and credits.
+- Saving, checking and removing the key are written to the audit log.
+
+AWS Bedrock and Google Vertex come later.
+
 ### Credits
 
 Usage is paid for with prepaid credits: **1 credit = US$1**, stored as integer micro-dollars so

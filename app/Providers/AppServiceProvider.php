@@ -3,9 +3,10 @@
 namespace App\Providers;
 
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
-use App\Services\ClaudeRunner\Credentials\PlatformCredentialResolver;
+use App\Services\ClaudeRunner\Credentials\WorkspaceCredentialResolver;
 use App\Services\Payments\PaymentProviderRegistry;
 use App\Support\CurrentWorkspace;
+use App\Support\Security\CredentialsEncrypter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -19,11 +20,13 @@ class AppServiceProvider extends ServiceProvider
         // One per request (and per queued job), never shared between them.
         $this->app->scoped(CurrentWorkspace::class);
 
-        // Which AI credentials each pipeline step runs with (Phase 3 swaps in per-workspace ones).
-        $this->app->bind(ClaudeCredentialResolver::class, PlatformCredentialResolver::class);
+        // Which AI credentials each pipeline step runs with: the workspace's own key if it saved
+        // one, otherwise the platform's.
+        $this->app->bind(ClaudeCredentialResolver::class, WorkspaceCredentialResolver::class);
 
         // Payment provider adapters register here as they're implemented.
         $this->app->singleton(PaymentProviderRegistry::class);
+        $this->app->singleton(CredentialsEncrypter::class);
     }
 
     /**

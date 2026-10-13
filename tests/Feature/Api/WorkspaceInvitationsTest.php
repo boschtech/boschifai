@@ -11,6 +11,7 @@ use App\Notifications\WorkspaceInvitationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -316,18 +317,53 @@ class WorkspaceInvitationsTest extends TestCase
         $this->assertNull(WorkspaceInvitation::sole()->accepted_at);
     }
 
-    public function test_an_existing_account_must_sign_in_first_and_never_gets_its_password_set(): void
+    public function test_an_existing_account_sets_a_new_password_from_the_link_and_joins(): void
+    {
+        $existing = $this->person('dev@example.com');
+        $token = $this->invite($this->person('admin@example.com', WorkspaceRole::Admin), 'dev@example.com');
+        $this->getJson("/api/invitations/{$token}")->assertJsonPath('data.has_account', true);
+
+        $this->fromSpa()->postJson("/api/invitations/{$token}/accept", [
+            'name' => 'Ignored', 'password' => 'a-brand-new-pass-77', 'password_confirmation' => 'a-brand-new-pass-77',
+        ])->assertOk()->assertJsonPath('data.workspace', 'Test Workspace');
+
+        $existing->refresh();
+        $this->assertTrue(Hash::check('a-brand-new-pass-77', $existing->password));
+        $this->assertSame('Dev', $existing->name);
+        $this->assertSame(WorkspaceRole::Member, $existing->roleIn($this->workspace()));
+        $this->assertAuthenticatedAs($existing, 'web');
+        $this->assertSame(1, User::where('email', 'dev@example.com')->count());
+        $this->assertTrue(AuditEvent::where('action', 'user.password_set_via_invitation')->where('actor_user_id', $existing->id)->exists());
+        $this->getJson("/api/invitations/{$token}")->assertNotFound(); // single use
+    }
+
+    public function test_setting_a_password_from_the_link_signs_out_the_accounts_other_sessions(): void
+    {
+        config(['session.driver' => 'database']); // the test suite runs on the array driver
+        $existing = $this->person('dev@example.com');
+        $existing->forceFill(['remember_token' => 'old-remember-token'])->save();
+        DB::table('sessions')->insert(['id' => 'other-device', 'user_id' => $existing->id, 'payload' => '', 'last_activity' => time()]);
+        $token = $this->invite($this->person('admin@example.com', WorkspaceRole::Admin), 'dev@example.com');
+
+        $this->fromSpa()->postJson("/api/invitations/{$token}/accept", [
+            'password' => 'a-brand-new-pass-77', 'password_confirmation' => 'a-brand-new-pass-77',
+        ])->assertOk();
+
+        $this->assertNotSame('old-remember-token', $existing->fresh()->remember_token);
+        $this->assertFalse(DB::table('sessions')->where('id', 'other-device')->exists());
+    }
+
+    public function test_an_existing_account_needs_a_strong_confirmed_password_and_keeps_the_old_one_otherwise(): void
     {
         $existing = $this->person('dev@example.com');
         $token = $this->invite($this->person('admin@example.com', WorkspaceRole::Admin), 'dev@example.com');
 
-        $this->getJson("/api/invitations/{$token}")->assertJsonPath('data.has_account', true);
-        $this->fromSpa()->postJson("/api/invitations/{$token}/accept", [
-            'name' => 'Attacker', 'password' => 'attacker-pass-123', 'password_confirmation' => 'attacker-pass-123',
-        ])->assertStatus(409)->assertJsonPath('message', 'You already have an account. Sign in to accept this invitation.');
+        $this->fromSpa()->postJson("/api/invitations/{$token}/accept", ['password' => 'short1', 'password_confirmation' => 'nope'])
+            ->assertJsonValidationErrors(['password']);
 
         $this->assertTrue(Hash::check('correct-horse-battery-9', $existing->fresh()->password));
         $this->assertNull($existing->roleIn($this->workspace()));
+        $this->assertNull(WorkspaceInvitation::sole()->accepted_at);
     }
 
     public function test_a_signed_in_user_joins_with_one_click_and_it_becomes_their_current_workspace(): void

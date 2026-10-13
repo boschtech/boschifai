@@ -259,11 +259,27 @@ describe('AcceptInvitationPage', () => {
         expect(reload).not.toHaveBeenCalled();
     });
 
-    it('asks someone with an account to sign in first, coming back here afterwards', async () => {
+    it('lets someone with an account create a new password and join, without asking for a name', async () => {
+        const accepted = vi.fn(() => ({ data: { workspace: 'Acme' } }));
+        const { reload } = await mountAccept({ ...INVITATION, has_account: true }, { 'POST /api/invitations/tok-1/accept': accepted });
+
+        expect(wrapper.find('#name').exists()).toBe(false);
+        expect(wrapper.text()).toContain('Create a new password to accept');
+
+        await wrapper.find('#password').setValue('a-brand-new-pass-77');
+        await wrapper.find('#password_confirmation').setValue('a-brand-new-pass-77');
+        await wrapper.find('form').trigger('submit');
+        await flushPromises();
+
+        expect(accepted).toHaveBeenCalledWith({ password: 'a-brand-new-pass-77', password_confirmation: 'a-brand-new-pass-77' });
+        expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('still lets someone with an account sign in instead, coming back here afterwards', async () => {
         await mountAccept({ ...INVITATION, has_account: true });
 
-        expect(wrapper.find('form').exists()).toBe(false);
-        expect(wrapper.find('a').attributes('href')).toBe('/login?redirect=%2Finvitations%2Ftok-1');
+        const signIn = wrapper.findAll('a').filter((a) => a.text() === 'Sign in instead').at(0);
+        expect(signIn.attributes('href')).toBe('/login?redirect=%2Finvitations%2Ftok-1');
     });
 
     it('joins with one click when signed in as the invited address', async () => {

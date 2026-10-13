@@ -6,6 +6,8 @@ use App\Enums\ClaudeBillingMode;
 use App\Enums\ClaudeCredentialSource;
 use App\Models\Run;
 use App\Models\WorkspaceAiCredential;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 /**
  * A workspace that set up its own provider runs on it — billed by that provider to the
@@ -26,6 +28,7 @@ class WorkspaceCredentialResolver implements ClaudeCredentialResolver
         return match ($own?->provider) {
             ClaudeCredentialSource::Anthropic => $this->anthropic($own),
             ClaudeCredentialSource::Bedrock => $this->bedrock($own, $run),
+            ClaudeCredentialSource::Vertex => $this->vertex($own),
             default => $this->platform->resolveFor($run, $stepKey),
         };
     }
@@ -75,6 +78,42 @@ class WorkspaceCredentialResolver implements ClaudeCredentialResolver
                 'AWS_ENDPOINT_URL_BEDROCK_RUNTIME' => $endpoint,
                 // Background tasks would otherwise use a default Sonnet model the account may
                 // not have enabled — use the workspace's chosen model for those too.
+                'ANTHROPIC_DEFAULT_HAIKU_MODEL' => $config['model'],
+            ],
+        );
+    }
+
+    /**
+     * The CLI's Google client only reads credentials from a file, so the key is written for this
+     * step only: owner-readable, outside every repo checkout, and deleted when the step ends
+     * (StepExecutionService runs the cleanup whatever happens). Provider, project, region and the
+     * official endpoint are pinned over the repo's own settings. No ANTHROPIC_API_KEY is set.
+     */
+    private function vertex(WorkspaceAiCredential $own): ResolvedClaudeCredentials
+    {
+        $key = GoogleServiceAccountKey::fromArray($own->secrets['service_account']);
+        $config = $own->config;
+
+        $directory = storage_path('app/private/ai-credentials');
+        File::ensureDirectoryExists($directory, 0700);
+        $path = $directory.'/'.Str::random(40).'.json';
+        touch($path);
+        chmod($path, 0600);
+        File::put($path, json_encode($key->fields, JSON_UNESCAPED_SLASHES));
+
+        return new ResolvedClaudeCredentials(
+            env: ['GOOGLE_APPLICATION_CREDENTIALS' => $path],
+            model: $config['model'],
+            billingMode: ClaudeBillingMode::CustomerAccount,
+            source: ClaudeCredentialSource::Vertex,
+            secretsToRedact: $key->secretParts(),
+            cleanup: fn () => File::delete($path),
+            pinnedEnv: [
+                'CLAUDE_CODE_USE_VERTEX' => '1',
+                'GOOGLE_APPLICATION_CREDENTIALS' => $path,
+                'ANTHROPIC_VERTEX_PROJECT_ID' => $config['project_id'],
+                'CLOUD_ML_REGION' => $config['region'],
+                'ANTHROPIC_VERTEX_BASE_URL' => VertexEndpoint::baseUrl($config['region']),
                 'ANTHROPIC_DEFAULT_HAIKU_MODEL' => $config['model'],
             ],
         );

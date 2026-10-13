@@ -15,7 +15,14 @@
                     <p class="text-fg-muted">Runs are paid for with this workspace's credits.</p>
                 </template>
                 <template v-else>
-                    <template v-if="credential.provider === 'bedrock'">
+                    <template v-if="credential.provider === 'vertex'">
+                        <p class="font-medium text-fg-strong">This workspace's own Google Vertex AI</p>
+                        <p class="text-fg-muted">
+                            {{ credential.config.client_email }} · project {{ credential.config.project_id }} · {{ credential.config.region }} · {{ credential.config.model }}.
+                            Google bills your project directly; runs don't use credits (costs shown in BoschifAI are estimates).
+                        </p>
+                    </template>
+                    <template v-else-if="credential.provider === 'bedrock'">
                         <p class="font-medium text-fg-strong">This workspace's own Amazon Bedrock</p>
                         <p class="text-fg-muted">
                             Role {{ credential.config.role_arn }} · {{ credential.config.region }} · {{ credential.config.model }}.
@@ -31,15 +38,15 @@
                     </p>
                     <p v-else class="mt-2 text-danger" data-status>{{ credential.validation_error }}</p>
                     <div class="mt-3 flex gap-3">
-                        <button type="button" :disabled="busy" :class="secondaryButton" @click="check">{{ credential.provider === 'bedrock' ? 'Check access' : 'Check key' }}</button>
-                        <button type="button" :disabled="busy" :class="secondaryButton" @click="confirmingRemoval = true">{{ credential.provider === 'bedrock' ? 'Stop using Bedrock' : 'Remove key' }}</button>
+                        <button type="button" :disabled="busy" :class="secondaryButton" @click="check">{{ credential.provider === 'anthropic' ? 'Check key' : 'Check access' }}</button>
+                        <button type="button" :disabled="busy" :class="secondaryButton" @click="confirmingRemoval = true">{{ stopLabel }}</button>
                     </div>
                 </template>
             </section>
 
-            <div v-if="credential.bedrock && credential.bedrock.available" class="mb-4 flex gap-2" role="tablist">
+            <div class="mb-4 flex flex-wrap gap-2" role="tablist">
                 <button
-                    v-for="option in [{ key: 'anthropic', label: 'Anthropic API key' }, { key: 'bedrock', label: 'Amazon Bedrock' }]"
+                    v-for="option in setupOptions"
                     :key="option.key"
                     type="button"
                     role="tab"
@@ -51,7 +58,31 @@
                 </button>
             </div>
 
-            <section v-if="setup === 'bedrock'" data-bedrock-setup>
+            <section v-if="setup === 'vertex'" data-vertex-setup>
+                <h2 class="text-sm font-semibold text-fg mb-2">Use your own Google Vertex AI</h2>
+                <ol class="mb-3 list-decimal pl-5 text-sm text-fg-muted">
+                    <li>In a Google Cloud project for this (a dedicated one is best), enable the Vertex AI API and enable the Claude model you want in Model Garden.</li>
+                    <li>Create a service account with only the <strong>Vertex AI User</strong> role (roles/aiplatform.user).</li>
+                    <li>Create a JSON key for it and choose that file below.</li>
+                </ol>
+                <p class="mb-3 text-sm text-fg-muted">
+                    The key is stored encrypted and never shown again; revoke it in Google Cloud whenever you like and upload a new one.
+                    Saving checks it end to end with one tiny model request (a fraction of a cent on your Google Cloud bill).
+                </p>
+                <form class="grid gap-2" @submit.prevent="saveVertex">
+                    <input id="service-account-key" type="file" accept="application/json,.json" required aria-label="Service-account key file" class="text-sm text-fg" @change="readKeyFile" />
+                    <div class="flex flex-wrap gap-2">
+                        <input id="vertex-region" v-model="vertex.region" required placeholder="us-east5 or global" aria-label="Region" :class="field" />
+                        <input id="vertex-model" v-model="vertex.model" required placeholder="claude-sonnet-4-5@20250929" aria-label="Model ID" :class="field" />
+                        <input id="vertex-project" v-model="vertex.project_id" placeholder="Project ID (default: the key's)" aria-label="Project ID" :class="field" />
+                    </div>
+                    <div>
+                        <button type="submit" :disabled="busy || !vertex.service_account_key" :class="primaryButton">{{ busy ? 'Checking with Google…' : 'Save and check' }}</button>
+                    </div>
+                </form>
+            </section>
+
+            <section v-else-if="setup === 'bedrock'" data-bedrock-setup>
                 <h2 class="text-sm font-semibold text-fg mb-2">Use your own Amazon Bedrock</h2>
                 <p class="mb-2 text-sm text-fg-muted">
                     BoschifAI never stores AWS keys: for each step it assumes a role in your AWS account for a
@@ -106,9 +137,9 @@
 
         <confirm-dialog
             :open="confirmingRemoval"
-            :title="credential && credential.provider === 'bedrock' ? 'Stop using Amazon Bedrock?' : 'Remove this workspace\'s API key?'"
+            :title="removalTitle"
             message="Runs will go back to BoschifAI's Anthropic account and use this workspace's credits."
-            :confirm-label="credential && credential.provider === 'bedrock' ? 'Stop using Bedrock' : 'Remove key'"
+            :confirm-label="stopLabel"
             @confirm="remove"
             @cancel="confirmingRemoval = false"
         />
@@ -139,6 +170,7 @@ export default {
             // Which setup form is showing.
             setup: 'anthropic',
             bedrock: { role_arn: '', region: '', model: '' },
+            vertex: { service_account_key: '', project_id: '', region: '', model: '' },
             field: 'min-w-0 flex-1 rounded-sm border border-border bg-surface px-3 py-2 text-sm text-fg transition focus:outline-none focus:border-primary',
             primaryButton: 'rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50',
             secondaryButton: 'rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt disabled:opacity-50',
@@ -147,6 +179,22 @@ export default {
 
     computed: {
         ...mapGetters('aiProvider', ['credential', 'usesOwnKey', 'loading', 'error']),
+
+        setupOptions() {
+            return [
+                { key: 'anthropic', label: 'Anthropic API key' },
+                ...(this.credential.bedrock?.available ? [{ key: 'bedrock', label: 'Amazon Bedrock' }] : []),
+                { key: 'vertex', label: 'Google Vertex AI' },
+            ];
+        },
+
+        removalTitle() {
+            return { bedrock: 'Stop using Amazon Bedrock?', vertex: 'Stop using Google Vertex AI?' }[this.credential?.provider] ?? 'Remove this workspace\'s API key?';
+        },
+
+        stopLabel() {
+            return { bedrock: 'Stop using Bedrock', vertex: 'Stop using Vertex' }[this.credential?.provider] ?? 'Remove key';
+        },
 
         trustPolicy() {
             return JSON.stringify({
@@ -187,6 +235,10 @@ export default {
         if (this.credential?.provider === 'bedrock') {
             this.setup = 'bedrock';
             this.bedrock = { ...this.credential.config };
+        } else if (this.credential?.provider === 'vertex') {
+            this.setup = 'vertex';
+            const { project_id, region, model } = this.credential.config;
+            this.vertex = { service_account_key: '', project_id, region, model };
         }
     },
 
@@ -214,6 +266,21 @@ export default {
         saveBedrock() {
             const settings = Object.fromEntries(Object.entries(this.bedrock).map(([k, v]) => [k, v.trim()]));
             return this.run(() => this.$store.dispatch('aiProvider/saveBedrock', settings), 'Saved. New runs use your Amazon Bedrock.');
+        },
+
+        // The key file's contents are kept only until the save request is sent.
+        async readKeyFile(event) {
+            const file = event.target.files?.[0];
+            this.vertex.service_account_key = file ? await file.text() : '';
+        },
+
+        async saveVertex() {
+            const { service_account_key, project_id, region, model } = this.vertex;
+            await this.run(
+                () => this.$store.dispatch('aiProvider/saveVertex', { service_account_key, project_id: project_id.trim() || null, region: region.trim(), model: model.trim() }),
+                'Saved. New runs use your Google Vertex AI.',
+            );
+            this.vertex.service_account_key = '';
         },
 
         check() {

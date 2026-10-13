@@ -42,10 +42,27 @@ class ClaudeProcessHardening
         'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE',
     ];
 
-    /** Pinned over anything a repo's settings files set (see class docblock). */
+    /**
+     * Pinned over anything a repo's settings files set (see class docblock). Each blanked
+     * setting is a command the CLI would run (to fetch a key, refresh cloud credentials or build
+     * telemetry headers) — a repo must not be able to name one.
+     */
     private const PINNED_SETTINGS = [
         'disableAllHooks' => true,
         'apiKeyHelper' => '',
+        'awsAuthRefresh' => '',
+        'awsCredentialExport' => '',
+        'gcpAuthRefresh' => '',
+        'otelHeadersHelper' => '',
+    ];
+
+    /**
+     * Every switch (CLI 2.1.296) that moves the CLI onto another provider or gateway. All off
+     * unless this invocation's own credentials turn one on (see cliArguments()).
+     */
+    private const PROVIDER_SWITCHES = [
+        'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_CODE_USE_MANTLE',
+        'CLAUDE_CODE_USE_ANTHROPIC_AWS', 'CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD', 'CLAUDE_CODE_USE_GATEWAY',
     ];
 
     /**
@@ -85,11 +102,10 @@ class ClaudeProcessHardening
         $settings = self::PINNED_SETTINGS + [
             'env' => [
                 // Which provider the CLI talks to is ours to decide, never the repo's: otherwise a
-                // repo could switch a run onto Bedrock/Vertex and point it at its own endpoint,
+                // repo could switch a run onto Bedrock/Vertex/… and point it at its own endpoint,
                 // where the AWS/Google SDK would sign requests with whatever credentials the
                 // worker's machine has. Off unless this invocation's credentials say otherwise.
-                'CLAUDE_CODE_USE_BEDROCK' => '0',
-                'CLAUDE_CODE_USE_VERTEX' => '0',
+                ...array_fill_keys(self::PROVIDER_SWITCHES, '0'),
                 ...$providerEnv,
                 'ANTHROPIC_BASE_URL' => config('boschifai.claude.hardening.api_base_url'),
                 'NODE_TLS_REJECT_UNAUTHORIZED' => '1',

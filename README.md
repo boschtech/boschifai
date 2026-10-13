@@ -480,7 +480,28 @@ docs/outstanding-decisions.md D19 for how widely). Its AWS credentials come from
 chain (task role in production) and are never passed to the `claude` process. Without the setting,
 the Bedrock option isn't offered.
 
-Google Vertex comes later.
+### Your own Google Vertex AI
+
+A workspace can also run on **its own Google Vertex AI** (Settings → AI provider → Google Vertex
+AI). Claude Code's Google client only reads credentials from a file — there's no documented way to
+hand it a short-lived token — so the customer uploads a **service-account key** (JSON) for a
+service account that has only the Vertex AI User role (`roles/aiplatform.user`), ideally in a
+dedicated project with the Vertex AI API and the Claude model enabled in Model Garden.
+
+- The key file is checked (a real service-account key for Google Cloud itself — the token endpoint
+  and universe are pinned) and then **checked end to end**: Google exchanges a signed JWT for an
+  access token, and one 1-token request goes to the model (a fraction of a cent on the customer's
+  bill). Only then is it saved — encrypted with `BOSCHIFAI_CREDENTIALS_KEY`, never shown again (the
+  service account's email is the hint).
+- **Each step** gets the key in its own owner-only (`0600`) file under
+  `storage/app/private/ai-credentials`, outside every repo checkout, deleted when the step ends
+  whatever happens; the private key is also redacted from the transcript. Provider, project,
+  region and the official Vertex endpoint (the same URL the CLI uses by default) are pinned over
+  the repo's settings, and no `ANTHROPIC_API_KEY` is set. Google bills the customer directly; no
+  credits are used; costs shown are the CLI's estimates.
+- Regions: `global`, the `us`/`eu` multi-regions, or a region such as `us-east5`. Model IDs look
+  like `claude-sonnet-4-5@20250929`.
+- The customer can revoke the key in Google Cloud at any time and upload a new one.
 
 ### Credits
 
@@ -661,6 +682,11 @@ invocation:
   `apiKeyHelper`, overriding the repo's `.claude/settings.json`. `--strict-mcp-config` ignores the
   repo's `.mcp.json`. All of these were verified against a deliberately hostile checkout.
 - **The GitHub push token goes to the push step only.** Earlier steps never see it.
+- **The repo can't switch provider or name a credential command.** Every provider switch the CLI
+  reads (Bedrock, Vertex, Foundry, Mantle, Anthropic-on-AWS/Google-Cloud, gateway) is pinned off
+  unless the invocation's own credentials turn one on, and every setting that makes the CLI run a
+  command for credentials or telemetry (`apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`,
+  `gcpAuthRefresh`, `otelHeadersHelper`) is blanked.
 - **Credentials never land in stored output.** The agent's own tools run with its credentials in
   their environment (a Bash `env` would print the API key), so the API key and push token are
   replaced with `[REDACTED]` in transcripts and error output before anything is written.

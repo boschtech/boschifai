@@ -128,11 +128,11 @@ describe('AiProviderSettingsPage — Amazon Bedrock', () => {
 
     it('only offers Bedrock when the server supports it', async () => {
         await mountPage({ ...PLATFORM, bedrock: { available: false } });
-        expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+        expect(wrapper.findAll('[role="tab"]').wrappers.map((t) => t.text())).toEqual(['Anthropic API key', 'Google Vertex AI']);
         wrapper.destroy();
 
         await mountPage({ ...PLATFORM, bedrock: BEDROCK_SETUP });
-        expect(wrapper.findAll('[role="tab"]').wrappers.map((t) => t.text())).toEqual(['Anthropic API key', 'Amazon Bedrock']);
+        expect(wrapper.findAll('[role="tab"]').wrappers.map((t) => t.text())).toEqual(['Anthropic API key', 'Amazon Bedrock', 'Google Vertex AI']);
     });
 
     it('shows a trust policy for BoschifAI with this workspace\'s external ID, and the permissions to grant', async () => {
@@ -178,6 +178,55 @@ describe('AiProviderSettingsPage — Amazon Bedrock', () => {
         await confirm.at(confirm.length - 1).trigger('click');
         await flushPromises();
         expect(removed).toHaveBeenCalled();
+    });
+});
+
+describe('AiProviderSettingsPage — Google Vertex AI', () => {
+    // jsdom's File has no text(); browsers' does — a stand-in with just that.
+    const pickedFile = (contents) => ({ text: () => Promise.resolve(contents) });
+    const KEY_FILE = JSON.stringify({ type: 'service_account', project_id: 'acme-claude', client_email: 'boschifai@acme-claude.iam.gserviceaccount.com', private_key: '-----BEGIN PRIVATE KEY-----' });
+    const VERTEX = {
+        provider: 'vertex', secret_hint: 'boschifai@acme-claud', status: 'valid', validation_error: null, validated_at: '2026-10-13T10:00:00Z',
+        config: { project_id: 'acme-claude', region: 'us-east5', model: 'claude-sonnet-4-5@20250929', client_email: 'boschifai@acme-claude.iam.gserviceaccount.com' },
+        bedrock: { available: false },
+    };
+
+    it('saves a key file with region and model, and forgets the key afterwards', async () => {
+        const put = vi.fn(() => ({ data: VERTEX }));
+        await mountPage({ ...PLATFORM, bedrock: { available: false } }, { 'PUT /api/workspace/ai-credentials': put });
+        await wrapper.findAll('[role="tab"]').filter((t) => t.text() === 'Google Vertex AI').at(0).trigger('click');
+        expect(wrapper.find('[data-vertex-setup]').text()).toContain('Vertex AI User');
+
+        const submit = () => wrapper.find('[data-vertex-setup] button[type="submit"]');
+        expect(submit().attributes('disabled')).toBeDefined();
+        await wrapper.vm.readKeyFile({ target: { files: [pickedFile(KEY_FILE)] } });
+        await wrapper.find('#vertex-region').setValue(' us-east5 ');
+        await wrapper.find('#vertex-model').setValue('claude-sonnet-4-5@20250929');
+        await wrapper.find('[data-vertex-setup] form').trigger('submit');
+        await flushPromises();
+
+        expect(put).toHaveBeenCalledWith({ provider: 'vertex', service_account_key: KEY_FILE, project_id: null, region: 'us-east5', model: 'claude-sonnet-4-5@20250929' });
+        expect(wrapper.vm.vertex.service_account_key).toBe('');
+        expect(wrapper.find('[role="status"]').text()).toBe('Saved. New runs use your Google Vertex AI.');
+        expect(wrapper.find('[data-current]').text()).toContain('boschifai@acme-claude.iam.gserviceaccount.com · project acme-claude · us-east5');
+    });
+
+    it('clears the chosen key when the file selection is cleared', async () => {
+        await mountPage({ ...PLATFORM, bedrock: { available: false } });
+        await wrapper.vm.readKeyFile({ target: { files: [pickedFile(KEY_FILE)] } });
+        await wrapper.vm.readKeyFile({ target: { files: [] } });
+
+        expect(wrapper.vm.vertex.service_account_key).toBe('');
+    });
+
+    it('opens on the saved Vertex setup (without the key) and offers to stop using it', async () => {
+        await mountPage(VERTEX);
+
+        expect(wrapper.find('#vertex-region').element.value).toBe('us-east5');
+        expect(wrapper.find('#vertex-project').element.value).toBe('acme-claude');
+        expect(wrapper.vm.vertex.service_account_key).toBe('');
+        await button('Stop using Vertex').trigger('click');
+        expect(wrapper.text()).toContain('Stop using Google Vertex AI?');
     });
 });
 

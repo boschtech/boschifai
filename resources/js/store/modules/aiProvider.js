@@ -53,6 +53,12 @@ const actions = {
         commit('SET_CREDENTIAL', data.data);
     },
 
+    // { service_account_key, project_id, region, model } — checked end to end with Google first.
+    async saveVertex({ commit }, settings) {
+        const { data } = await window.axios.put('/api/workspace/ai-credentials', { provider: 'vertex', ...settings });
+        commit('SET_CREDENTIAL', data.data);
+    },
+
     async checkKey({ commit }) {
         const { data } = await window.axios.post('/api/workspace/ai-credentials/check');
         commit('SET_CREDENTIAL', data.data);

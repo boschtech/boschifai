@@ -2,7 +2,9 @@
     <div class="max-w-2xl">
         <h1 class="text-xl font-bold text-fg-strong mb-1">Connect Repo</h1>
         <p class="text-sm text-fg-muted mb-6">
-            Connect a repository from GitHub, or from a checkout already on this machine.
+            {{ localReposEnabled
+                ? 'Connect a repository from GitHub, or from a checkout already on this machine.'
+                : 'Connect a repository from GitHub.' }}
         </p>
 
         <p v-if="authorizeDeniedMessage" class="text-sm text-warning mb-4">{{ authorizeDeniedMessage }}</p>
@@ -174,7 +176,7 @@
             </div>
         </details>
 
-        <details class="group mb-4 rounded-md border border-border bg-surface">
+        <details v-if="localReposEnabled" class="group mb-4 rounded-md border border-border bg-surface">
             <summary class="flex cursor-pointer select-none list-none items-center justify-between px-4 py-3">
                 <span class="text-base font-semibold text-fg-strong">Local Repository</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-fg-muted transition group-open:rotate-90">
@@ -340,6 +342,7 @@ export default {
             localApiError: 'error',
         }),
         ...mapGetters('repoConfigs', { repoConfigsList: 'list' }),
+        ...mapGetters('auth', ['localReposEnabled']),
 
         repositoriesLoading() {
             return this.loadingConnectionCount > 0;
@@ -440,7 +443,7 @@ export default {
             .finally(() => {
                 this.connectionsLoading = false;
             });
-        this.browseLocalPath('');
+        if (this.localReposEnabled) this.browseLocalPath('');
     },
 
     methods: {

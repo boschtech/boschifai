@@ -102,6 +102,17 @@ describe('auth store', () => {
         expect(auth.getters.canManage(state)).toBe(false);
     });
 
+    it('reports whether local-repo browsing is enabled on this install', () => {
+        const state = JSON.parse(JSON.stringify(auth.state));
+        expect(auth.getters.localReposEnabled(state)).toBe(false);
+
+        auth.mutations.SET_USER(state, { ...USER, features: { local_repos: true } });
+        expect(auth.getters.localReposEnabled(state)).toBe(true);
+
+        auth.mutations.SET_USER(state, { ...USER, features: { local_repos: false } });
+        expect(auth.getters.localReposEnabled(state)).toBe(false);
+    });
+
     it('switchWorkspace stores the user as the server returns them after the switch', async () => {
         const after = signedInUser();
         mockApi({ 'POST /api/workspaces/20/switch': { data: after } });

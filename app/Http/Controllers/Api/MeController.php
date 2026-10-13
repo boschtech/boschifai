@@ -27,6 +27,10 @@ class MeController extends Controller
             'workspaces' => $user->workspaces()->orderBy('name')->get()
                 ->map(fn ($workspace) => ['id' => $workspace->id, 'name' => $workspace->name, 'role' => $workspace->pivot->role])
                 ->values(),
+            // Single-tenant features the SPA hides when they're off (see `boschifai.features`).
+            'features' => [
+                'local_repos' => (bool) config('boschifai.features.local_repos'),
+            ],
         ]]);
     }
 }

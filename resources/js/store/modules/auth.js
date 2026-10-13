@@ -16,6 +16,8 @@ const getters = {
     workspaces: (state) => state.user?.workspaces ?? [],
     // Admins and owners manage the workspace's repositories and GitHub connections.
     canManage: (state) => state.user?.current_workspace?.can_manage === true,
+    // Off on a shared (hosted) install — the server can only browse its own disk, not the user's.
+    localReposEnabled: (state) => state.user?.features?.local_repos === true,
 };
 
 const mutations = {

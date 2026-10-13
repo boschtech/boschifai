@@ -8,6 +8,7 @@ use App\Models\Run;
 use App\Models\RunArtifact;
 use App\Models\RunStep;
 use App\Services\ArtifactCollection\GitStatusDiffCollector;
+use App\Services\Billing\StepBilling;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
@@ -28,6 +29,7 @@ class StepExecutionService
         private GitStatusDiffCollector $diffCollector,
         private CancellationChecker $cancellation,
         private ClaudeCredentialResolver $credentials,
+        private StepBilling $billing,
     ) {}
 
     public function run(Run $run, string $stepKey, string $prompt, int $timeoutSeconds): StepOutcome
@@ -95,6 +97,13 @@ class StepExecutionService
             'stop_reason' => $result->stopReason,
             'timed_out' => $result->timedOut,
         ]);
+
+        // Shadow pricing must never break a pipeline: a failure here is reported, not thrown.
+        try {
+            $this->billing->recordShadowCharge($run, $stepKey, $invocation, $result);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         if ($result->cancelled) {
             $this->cancellation->markCancelled($run, $stepKey, 'Cancelled by user.');

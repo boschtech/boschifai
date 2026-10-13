@@ -25,6 +25,9 @@
                 <p v-if="billing.held_usd !== '0.00'" class="mt-1 text-xs text-fg-muted">
                     Plus {{ money(billing.held_usd) }} reserved for steps that are running now — whatever they don't use comes back.
                 </p>
+                <p v-if="billing.next_expiry" class="mt-1 text-xs text-fg-muted" data-next-expiry>
+                    {{ money(billing.next_expiry.amount_usd) }} expires on {{ formatDate(billing.next_expiry.expires_at) }} — the oldest credits are used first.
+                </p>
             </section>
 
             <section class="mb-8">
@@ -56,6 +59,7 @@
 
                     <p class="mb-3 text-xs text-fg-muted">
                         Prices are in US dollars. You'll see the exact amount in the currency you pay with before paying.
+                        Credits stay usable for {{ billing.credit_validity_months }} months from purchase.
                     </p>
 
                     <div class="flex flex-wrap items-center gap-3">

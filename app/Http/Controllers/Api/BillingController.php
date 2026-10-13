@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CreditLot;
 use App\Models\Payment;
 use App\Models\WorkspaceAiCredential;
 use App\Services\Billing\CreditLedger;
@@ -23,6 +24,11 @@ class BillingController extends Controller
         return response()->json(['data' => [
             'available_usd' => MicroUsd::format($balance->available_micro, 2),
             'held_usd' => MicroUsd::format($balance->held_micro, 2),
+            'credit_validity_months' => (int) config('billing.credit_validity_months'),
+            // The soonest-expiring credits still unused, so nobody is surprised.
+            'next_expiry' => ($lot = CreditLot::where('workspace_id', $current->id())->where('remaining_micro', '>', 0)->where('expires_at', '>', now())->orderBy('expires_at')->first())
+                ? ['amount_usd' => MicroUsd::format($lot->remaining_micro, 2), 'expires_at' => $lot->expires_at]
+                : null,
             // Runs on the workspace's own Anthropic key don't use credits.
             'uses_own_ai_key' => WorkspaceAiCredential::activeFor($current->id()) !== null,
             'packs' => collect(config('billing.packs'))->map(function ($pack, $key) {

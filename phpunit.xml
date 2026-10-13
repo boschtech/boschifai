@@ -54,6 +54,7 @@
         <!-- Empty = the pricing defaults (config/billing.php), whatever a local .env sets. -->
         <env name="BILLING_PACKS" value="" force="true"/>
         <env name="BILLING_MARKUP" value="" force="true"/>
+        <env name="BILLING_CREDIT_VALIDITY_MONTHS" value="" force="true"/>
         <env name="BILLING_MIN_CHARGE_USD" value="" force="true"/>
         <env name="BILLING_HOLD_GAP_ANALYSIS_USD" value="" force="true"/>
         <env name="BILLING_HOLD_TEST_PLAN_USD" value="" force="true"/>

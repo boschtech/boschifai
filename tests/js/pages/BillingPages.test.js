@@ -13,6 +13,8 @@ function billingData(overrides = {}) {
     return {
         available_usd: '12.50',
         held_usd: '0.00',
+        credit_validity_months: 36,
+        next_expiry: null,
         packs: [STARTER, TEAM],
         providers: [{ key: 'stripe', currencies: ['USD'] }],
         payments: [],
@@ -58,11 +60,20 @@ describe('BillingPage', () => {
         expect(wrapper.find('[data-pack="team"] [data-bonus]').text()).toBe('Includes 5.00 bonus credits');
     });
 
+    it('says how long credits last and which expire next', async () => {
+        await mountBilling({ data: billingData({ next_expiry: { amount_usd: '7.50', expires_at: '2029-01-15T10:00:00Z' } }) });
+
+        expect(wrapper.text()).toContain('Credits stay usable for 36 months from purchase.');
+        expect(wrapper.find('[data-next-expiry]').text()).toContain('US$7.50 expires on');
+        expect(wrapper.find('[data-next-expiry]').text()).toContain('the oldest credits are used first');
+    });
+
     it('does not mention reserved credits when nothing is held', async () => {
         await mountBilling();
 
         expect(wrapper.find('[data-balance]').text()).not.toContain('reserved');
         expect(wrapper.find('[data-own-key]').exists()).toBe(false);
+        expect(wrapper.find('[data-next-expiry]').exists()).toBe(false);
     });
 
     it('explains that runs on the workspace\'s own key do not use credits', async () => {

@@ -20,3 +20,6 @@ Artisan::command('inspire', function () {
 Schedule::command('boschifai:refresh-exchange-rates')->hourlyAt(30)->withoutOverlapping();
 
 Schedule::command('boschifai:release-stale-holds')->hourlyAt(30)->withoutOverlapping();
+
+// Credits past their 36-month validity, and the 60/14-day reminder emails (D6).
+Schedule::command('boschifai:expire-credits')->hourlyAt(30)->withoutOverlapping();

@@ -32,6 +32,13 @@ return [
     // provider publishes one; for scale, GitHub Copilot charges US$0.04 per extra request.
     'min_charge_usd' => $setting('BILLING_MIN_CHARGE_USD', '0.02'),
 
+    // How long purchased (and granted) credits stay usable. 36 months: the CPA (s63) doesn't allow
+    // prepaid credits to expire sooner for consumers and small businesses (under R2m), and one
+    // rule for everyone avoids having to test each customer's size (D6). Oldest credits are used
+    // first; owners and admins are emailed reminder_days before credits expire.
+    'credit_validity_months' => (int) $setting('BILLING_CREDIT_VALIDITY_MONTHS', '36'),
+    'expiry_reminder_days' => [60, 14],
+
     // Credit packs customers can buy: "key:credits:price" in USD, comma-separated. Credits above
     // the price are a bonus. Defaults (D5) follow the common pattern for prepaid credits: a small
     // entry pack, then larger packs with 10–20% bonus credits:

@@ -15,4 +15,6 @@ enum CreditEntryType: string
     case Release = 'release';
     /** Manual credit or debit by a platform admin, with a reason. */
     case Adjustment = 'adjustment';
+    /** Unused credits of a lot past its expiry date (CreditLedger::expire). */
+    case Expiry = 'expiry';
 }

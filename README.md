@@ -573,6 +573,18 @@ php artisan boschifai:release-stale-holds   # only holds older than the longest 
 The `scheduler` container runs it every hour, together with the exchange-rate refresh (see
 *Scheduled commands* below).
 
+#### Credit expiry
+
+Purchased (and granted) credits stay usable for **36 months** (`BILLING_CREDIT_VALIDITY_MONTHS`) —
+the Consumer Protection Act (s63) doesn't allow prepaid credits to expire sooner for consumers
+and small businesses, and one rule for everyone avoids testing each customer's size (D6). Each
+purchase or grant is a **lot** (`credit_lots`) with its own expiry date; charges use up the lots
+that expire soonest. The scheduler runs `boschifai:expire-credits` hourly: it emails owners and
+admins **60 and 14 days** before credits expire, then removes what's left as an `expiry` ledger
+entry — never credits held for a running step (those expire once the step settles, if unused).
+The billing page shows how long credits last and the next amount to expire. Balances that existed
+when lots were introduced became one lot each, valid for 36 months from then.
+
 #### Buying credits
 
 Owners and admins see the balance and buy credit packs under **Settings → Billing**. By default

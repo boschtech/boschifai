@@ -65,7 +65,8 @@ class AuthenticationTest extends TestCase
         $this->fromSpa()->getJson('/api/me')
             ->assertOk()
             ->assertJsonPath('data.email', 'ops@example.com')
-            ->assertJsonPath('data.name', 'Ops Admin');
+            ->assertJsonPath('data.name', 'Ops Admin')
+            ->assertJsonPath('data.features.local_repos', true);
 
         $this->fromSpa()->postJson('/logout')->assertNoContent();
         $this->assertGuest('web');

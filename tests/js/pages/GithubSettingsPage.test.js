@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import GithubSettingsPage from '@/pages/GithubSettingsPage.vue';
+import auth from '@/store/modules/auth';
 import github from '@/store/modules/github';
 import localRepos from '@/store/modules/localRepos';
 import repoConfigs from '@/store/modules/repoConfigs';
@@ -40,11 +41,12 @@ function defaultApi(overrides = {}) {
 
 let wrapper;
 
-async function mountPage(apiOverrides = {}, { query = {} } = {}) {
+async function mountPage(apiOverrides = {}, { query = {}, localReposEnabled = true } = {}) {
     const api = defaultApi(apiOverrides);
     mockApi(api);
     const { localVue, router } = makeLocalVueWithRouter({ path: '/settings/github', query });
-    const store = makeRealStore(localVue, { github, localRepos, repoConfigs });
+    const store = makeRealStore(localVue, { auth, github, localRepos, repoConfigs });
+    store.commit('auth/SET_USER', { id: 1, features: { local_repos: localReposEnabled } });
     wrapper = mount(GithubSettingsPage, { localVue, store, router, attachTo: document.body });
     await flushPromises();
 
@@ -356,6 +358,13 @@ describe('GithubSettingsPage — local repositories', () => {
         await flushPromises();
 
         expect(deleted).toHaveBeenCalled();
+    });
+
+    it('hides the local repository section and never browses when the install has it disabled', async () => {
+        await mountPage({}, { localReposEnabled: false });
+
+        expect(wrapper.text()).not.toContain('Local Repository');
+        expect(window.axios.get).not.toHaveBeenCalledWith('/api/local-repos/browse', expect.anything());
     });
 
     it('shows the API error when a folder cannot be browsed', async () => {

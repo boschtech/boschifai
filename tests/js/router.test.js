@@ -66,6 +66,11 @@ describe('router', () => {
         expect(invitation.meta.public).toBe(true);
         expect(invitation.matched[0].props.default).toBe(true);
         expect(route({ name: 'settings.workspace' }).meta.requiresManage).toBe(true);
+        expect(route({ name: 'billing' }).meta.requiresManage).toBe(true);
+        const paymentReturn = route('/billing/payments/7');
+        expect(paymentReturn.name).toBe('billing.payment');
+        expect(paymentReturn.meta.requiresManage).toBe(true);
+        expect(paymentReturn.matched[0].props.default).toBe(true);
     });
 
     it('uses clean history URLs', () => {
@@ -75,7 +80,7 @@ describe('router', () => {
 
 describe('store', () => {
     it('registers every namespaced module', () => {
-        expect(Object.keys(store._modules.root._children).sort()).toEqual(['auth', 'github', 'localRepos', 'repoConfigs', 'runs', 'usage', 'workspace']);
+        expect(Object.keys(store._modules.root._children).sort()).toEqual(['auth', 'billing', 'github', 'localRepos', 'repoConfigs', 'runs', 'usage', 'workspace']);
         expect(store.getters['runs/list']).toEqual([]);
         expect(store.getters['usage/tokensThisMonth']).toBeNull();
     });

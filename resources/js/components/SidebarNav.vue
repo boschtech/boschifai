@@ -58,7 +58,10 @@ const SECTIONS = [
     },
     {
         title: 'Settings',
-        links: [{ name: 'settings.workspace', label: 'Workspace', requiresManage: true }],
+        links: [
+            { name: 'settings.workspace', label: 'Workspace', requiresManage: true },
+            { name: 'billing', label: 'Billing', requiresManage: true },
+        ],
     },
 ];
 

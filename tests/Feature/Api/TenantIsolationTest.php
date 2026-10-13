@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\PaymentStatus;
 use App\Enums\RunState;
 use App\Enums\WorkspaceRole;
 use App\Models\ClaudeInvocation;
 use App\Models\GithubConnection;
+use App\Models\Payment;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\RunStep;
@@ -54,9 +56,11 @@ class TenantIsolationTest extends TestCase
         $this->other->addMember($theirMember, WorkspaceRole::Member);
         $theirInvitation = WorkspaceInvitation::create(['workspace_id' => $this->other->id, 'email' => 'invitee@example.com', 'role' => WorkspaceRole::Member, 'token_hash' => str_repeat('b', 64), 'expires_at' => now()->addDay()]);
 
+        $theirPayment = Payment::create(['workspace_id' => $this->other->id, 'provider' => 'fake', 'pack' => 'team', 'credits_micro' => 1, 'price_usd_micro' => 1, 'charge_currency' => 'USD', 'charge_amount_minor' => 1, 'status' => PaymentStatus::Pending]);
+
         $this->foreign = [
             'run' => $run->id, 'step' => $step->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'workspace' => $this->other->id,
-            'member' => $theirMember->id, 'invitation' => $theirInvitation->id,
+            'member' => $theirMember->id, 'invitation' => $theirInvitation->id, 'payment' => $theirPayment->id,
         ];
     }
 

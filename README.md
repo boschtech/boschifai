@@ -476,8 +476,29 @@ A hold that was never settled (the worker died mid-step) is returned by:
 php artisan boschifai:release-stale-holds   # only holds older than the longest step timeout + 30 min
 ```
 
-There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is on. Buying
-credits (Stripe, Paystack, PayFast) comes in a later release.
+There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is on.
+
+#### Buying credits
+
+Owners and admins buy credit packs (`BILLING_PACKS`) through a payment provider. Stripe, Paystack
+and PayFast plug in as adapters behind `App\Services\Payments\PaymentProvider`; none is
+implemented yet — which goes first is an open decision (see
+[docs/outstanding-decisions.md](docs/outstanding-decisions.md)). The provider-independent part is
+in place:
+
+- `POST /api/billing/checkout` quotes the pack in the provider's currency (USD, or ZAR at
+  `PAYMENTS_FX_ZAR_RATE` plus `PAYMENTS_FX_ZAR_BUFFER`, rounded up to the cent), records a pending
+  payment and returns the provider's checkout URL.
+- **Credits are granted only by the provider's webhook** (`POST /webhooks/payments/{provider}` —
+  outside the web and api groups: no session, CSRF or sign-in). It must carry a valid signature
+  (otherwise 400 and an error report); each event is processed once; the payment is then
+  **confirmed with the provider directly** and its amount and currency must match the stored
+  quote exactly. A mismatch is parked as `needs_review` and reported — never credited. Credits are
+  granted once per payment, written to the ledger and the audit log.
+- Webhook payloads are stored redacted (no card or buyer details). If confirming with the
+  provider fails, the event isn't marked as seen, so the provider's retry processes it.
+- `GET /api/billing` returns the balance, packs, providers and recent payments;
+  `GET /api/billing/payments/{id}` is what the return page polls.
 
 ## API reference
 

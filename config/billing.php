@@ -30,6 +30,15 @@ return [
     // Credits reserved before each step runs, in USD — the most that step can ever be charged
     // (anything above it is absorbed by the platform). Calibrate from the report's p95 column.
     // Unset = no hold and no cap for that step.
+    // Credit packs customers can buy: "key:credits:price" in USD, comma-separated, e.g.
+    // "starter:10:10,team:50:45". Sizes and prices are a product/finance decision
+    // (docs/outstanding-decisions.md D5); with none set, nothing can be bought.
+    'packs' => collect(explode(',', (string) env('BILLING_PACKS', '')))
+        ->map(fn ($pack) => array_map('trim', explode(':', $pack)))
+        ->filter(fn ($parts) => count($parts) === 3 && $parts[0] !== '')
+        ->mapWithKeys(fn ($parts) => [$parts[0] => ['credits_usd' => $parts[1], 'price_usd' => $parts[2]]])
+        ->all(),
+
     'stage_holds_usd' => [
         'gap_analysis' => env('BILLING_HOLD_GAP_ANALYSIS_USD'),
         'test_plan' => env('BILLING_HOLD_TEST_PLAN_USD'),

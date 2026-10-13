@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\PaymentStatus;
 use App\Enums\RunState;
 use App\Enums\WorkspaceRole;
 use App\Models\GithubConnection;
+use App\Models\Payment;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\User;
@@ -85,7 +87,8 @@ class WorkspaceMembershipTest extends TestCase
         $run = Run::create(['repo_config_id' => $repo->id, 'requirement_text' => 'x', 'target_file_path' => '', 'state' => RunState::Draft]);
         $colleague = $this->memberOf($this->workspace(), WorkspaceRole::Member, 'colleague@example.com');
         $invitation = WorkspaceInvitation::create(['workspace_id' => $this->workspace()->id, 'email' => 'new@example.com', 'role' => WorkspaceRole::Member, 'token_hash' => str_repeat('a', 64), 'expires_at' => now()->addDay()]);
-        $ids = ['run' => $run->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'organization' => 'acme', 'member' => $colleague->id, 'invitation' => $invitation->id];
+        $payment = Payment::create(['workspace_id' => $this->workspace()->id, 'provider' => 'fake', 'pack' => 'team', 'credits_micro' => 1, 'price_usd_micro' => 1, 'charge_currency' => 'USD', 'charge_amount_minor' => 1, 'status' => PaymentStatus::Pending]);
+        $ids = ['run' => $run->id, 'repoConfig' => $repo->id, 'connection' => $connection->id, 'organization' => 'acme', 'member' => $colleague->id, 'invitation' => $invitation->id, 'payment' => $payment->id];
 
         $manageRoutes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn (RoutingRoute $route) => in_array('workspace.manage', $route->gatherMiddleware(), true));

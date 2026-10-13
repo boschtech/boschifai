@@ -120,4 +120,16 @@ class ClaudeProcessHardeningTest extends TestCase
 
         $this->assertContains('--restricted', $this->hardening()->cliArguments());
     }
+
+    public function test_a_repository_cannot_switch_a_run_onto_bedrock_or_vertex(): void
+    {
+        // Otherwise a repo could point a platform run at its own "Bedrock" endpoint, where the
+        // AWS SDK would sign requests with whatever credentials the worker's machine has.
+        $env = $this->settings($this->hardening()->cliArguments())['env'];
+        $this->assertSame(['0', '0'], [$env['CLAUDE_CODE_USE_BEDROCK'], $env['CLAUDE_CODE_USE_VERTEX']]);
+
+        // Only the invocation's own credentials can turn a provider on (pinned the same way).
+        $bedrock = $this->settings($this->hardening()->cliArguments(['CLAUDE_CODE_USE_BEDROCK' => '1']))['env'];
+        $this->assertSame(['1', '0'], [$bedrock['CLAUDE_CODE_USE_BEDROCK'], $bedrock['CLAUDE_CODE_USE_VERTEX']]);
+    }
 }

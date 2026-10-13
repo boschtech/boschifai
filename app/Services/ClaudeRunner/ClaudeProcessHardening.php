@@ -74,11 +74,23 @@ class ClaudeProcessHardening
         return $env;
     }
 
-    /** @return list<string> */
-    public function cliArguments(): array
+    /**
+     * @param  array<string, string>  $providerEnv  provider settings for this invocation (see
+     *                                              ResolvedClaudeCredentials::$pinnedEnv) — pinned
+     *                                              the same way, over anything a repo sets
+     * @return list<string>
+     */
+    public function cliArguments(array $providerEnv = []): array
     {
         $settings = self::PINNED_SETTINGS + [
             'env' => [
+                // Which provider the CLI talks to is ours to decide, never the repo's: otherwise a
+                // repo could switch a run onto Bedrock/Vertex and point it at its own endpoint,
+                // where the AWS/Google SDK would sign requests with whatever credentials the
+                // worker's machine has. Off unless this invocation's credentials say otherwise.
+                'CLAUDE_CODE_USE_BEDROCK' => '0',
+                'CLAUDE_CODE_USE_VERTEX' => '0',
+                ...$providerEnv,
                 'ANTHROPIC_BASE_URL' => config('boschifai.claude.hardening.api_base_url'),
                 'NODE_TLS_REJECT_UNAUTHORIZED' => '1',
                 // The worker's own proxy settings (if any) still reach the CLI through

@@ -31,6 +31,24 @@ class Workspace extends Model
         return $slug;
     }
 
+    /**
+     * The external ID this workspace's cloud roles must require when trusting BoschifAI (AWS
+     * "confused deputy" protection): unguessable, created on first use and never changed.
+     */
+    public function aiExternalId(): string
+    {
+        if (! $this->ai_external_id) {
+            // Write-once in the database, then read back: a stale copy of this workspace must
+            // never replace an ID a customer has already put in their trust policy.
+            static::whereKey($this->id)->whereNull('ai_external_id')
+                ->update(['ai_external_id' => 'boschifai-'.Str::lower(Str::random(32))]);
+            $this->ai_external_id = static::whereKey($this->id)->value('ai_external_id');
+            $this->syncOriginalAttribute('ai_external_id');
+        }
+
+        return $this->ai_external_id;
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_user')->withPivot('role')->withTimestamps();

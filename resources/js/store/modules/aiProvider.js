@@ -1,4 +1,5 @@
-// Settings → AI provider: the platform's key and credits, or the workspace's own Anthropic key.
+// Settings → AI provider: the platform's key and credits, or the workspace's own Anthropic key or
+// Amazon Bedrock.
 // The API never returns the key itself — only a hint like "…AbCd".
 
 const state = {
@@ -43,6 +44,12 @@ const actions = {
     // Each of these resolves with the updated credential; errors are left to the page to show.
     async saveKey({ commit }, apiKey) {
         const { data } = await window.axios.put('/api/workspace/ai-credentials', { api_key: apiKey });
+        commit('SET_CREDENTIAL', data.data);
+    },
+
+    // { role_arn, region, model } — checked end to end with AWS before it's saved.
+    async saveBedrock({ commit }, settings) {
+        const { data } = await window.axios.put('/api/workspace/ai-credentials', { provider: 'bedrock', ...settings });
         commit('SET_CREDENTIAL', data.data);
     },
 

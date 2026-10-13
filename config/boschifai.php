@@ -98,6 +98,14 @@ return [
         // Generate with `php artisan boschifai:generate-credentials-key`; production: AWS SSM.
         // To rotate: put the new key here, the old one in previous_keys, then run
         // `php artisan boschifai:rotate-credentials-key`, then drop the old key.
+        // Workspaces running on their own Amazon Bedrock (Settings → AI provider). BoschifAI never
+        // stores AWS keys: each step assumes the workspace's role with STS for a short-lived session.
+        'bedrock' => [
+            // The AWS identity BoschifAI runs as (e.g. the ECS task role ARN) — customers' role
+            // trust policies must allow it. Unset = the Bedrock option isn't offered.
+            'platform_principal_arn' => env('BOSCHIFAI_BEDROCK_PRINCIPAL_ARN'),
+        ],
+
         'credentials_encryption' => [
             'key' => env('BOSCHIFAI_CREDENTIALS_KEY'),
             'previous_keys' => array_values(array_filter(array_map('trim', explode(',', (string) env('BOSCHIFAI_CREDENTIALS_PREVIOUS_KEYS', ''))))),

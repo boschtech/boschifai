@@ -450,7 +450,37 @@ directly, and no credits are held, charged or priced (usage is still recorded, w
   it no longer works — rather than silently moving onto the platform's key and credits.
 - Saving, checking and removing the key are written to the audit log.
 
-AWS Bedrock and Google Vertex come later.
+### Your own Amazon Bedrock
+
+A workspace can also run on **its own Amazon Bedrock** (Settings → AI provider → Amazon Bedrock).
+BoschifAI never stores AWS keys: the customer creates an IAM role in their AWS account, and for
+each step BoschifAI assumes it with STS for a short-lived session (up to an hour, longer than any
+step). AWS bills the customer directly; no credits are used. Cost figures BoschifAI shows for
+these runs are the CLI's estimates, not AWS's bill.
+
+- **Trust:** the setup page shows the role's trust policy — BoschifAI's AWS identity as the
+  principal, with the workspace's **external ID** as a required condition (stops one customer from
+  getting BoschifAI to use another customer's role). The external ID is created once and never
+  changes. It also shows the permissions to grant (from Claude Code's Bedrock documentation:
+  `bedrock:InvokeModel`, `InvokeModelWithResponseStream`, `GetInferenceProfile`,
+  `ListInferenceProfiles`, and the two `aws-marketplace` actions).
+- **Check on save:** BoschifAI assumes the role and makes one 1-token model request — the only way
+  to prove the role can actually use the model (a fraction of a cent on the customer's AWS bill).
+  The model is a Bedrock inference profile ID (e.g. `us.anthropic.claude-sonnet-4-6`) or ARN, and
+  is also used for the CLI's background tasks.
+- **Each step** gets `CLAUDE_CODE_USE_BEDROCK=1`, the region and the temporary credentials — no
+  `ANTHROPIC_API_KEY` — and the Bedrock endpoint is pinned to the official regional one, so a
+  repo's own settings can't redirect the agent's signed AWS requests. For every other run the
+  Bedrock/Vertex switches are pinned **off**, so a repo can't move a platform run onto them either.
+  If AWS refuses the role when a step starts, the step fails with the reason.
+
+**Operations setup:** set `BOSCHIFAI_BEDROCK_PRINCIPAL_ARN` to the AWS identity the app and
+worker run as (e.g. the ECS task role) and allow that identity `sts:AssumeRole` (see
+docs/outstanding-decisions.md D19 for how widely). Its AWS credentials come from the SDK's default
+chain (task role in production) and are never passed to the `claude` process. Without the setting,
+the Bedrock option isn't offered.
+
+Google Vertex comes later.
 
 ### Credits
 

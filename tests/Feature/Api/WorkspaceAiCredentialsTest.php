@@ -48,7 +48,7 @@ class WorkspaceAiCredentialsTest extends TestCase
 
     public function test_a_workspace_starts_on_the_platform_key(): void
     {
-        $this->getJson('/api/workspace/ai-credentials')->assertOk()->assertExactJson(['data' => ['provider' => 'platform']]);
+        $this->getJson('/api/workspace/ai-credentials')->assertOk()->assertExactJson(['data' => ['provider' => 'platform', 'bedrock' => ['available' => false]]]);
     }
 
     public function test_a_key_anthropic_accepts_is_saved_encrypted_and_never_sent_back(): void
@@ -137,7 +137,7 @@ class WorkspaceAiCredentialsTest extends TestCase
         $this->anthropicAnswers(200);
         $this->save();
 
-        $this->deleteJson('/api/workspace/ai-credentials')->assertOk()->assertExactJson(['data' => ['provider' => 'platform']]);
+        $this->deleteJson('/api/workspace/ai-credentials')->assertOk()->assertExactJson(['data' => ['provider' => 'platform', 'bedrock' => ['available' => false]]]);
         $this->deleteJson('/api/workspace/ai-credentials')->assertOk();
 
         $this->assertSame(0, WorkspaceAiCredential::count());

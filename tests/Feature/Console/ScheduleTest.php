@@ -14,7 +14,7 @@ class ScheduleTest extends TestCase
         $events = collect(app(Schedule::class)->events())
             ->keyBy(fn (Event $event) => preg_replace("/^.*artisan'? /", '', $event->command));
 
-        foreach (['boschifai:refresh-exchange-rates', 'boschifai:release-stale-holds'] as $command) {
+        foreach (['boschifai:refresh-exchange-rates', 'boschifai:release-stale-holds', 'boschifai:expire-credits'] as $command) {
             $this->assertTrue($events->has($command), "{$command} is scheduled");
             $this->assertSame('30 * * * *', $events[$command]->expression, $command);
             $this->assertTrue($events[$command]->withoutOverlapping, "{$command} must not overlap itself");

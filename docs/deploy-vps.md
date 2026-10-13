@@ -186,6 +186,8 @@ needed. **Every hour, at half past** (`routes/console.php`):
 - `boschifai:refresh-exchange-rates` — the ECB's daily reference rate for rand quotes. If it keeps
   failing, rand payments stop once the last rate is 4 days old; check the scheduler's log.
 - `boschifai:release-stale-holds` — returns credit holds left by a worker that died mid-step.
+- `boschifai:expire-credits` — removes credits past their 36-month validity and emails owners and
+  admins 60 and 14 days beforehand.
 
 ```bash
 docker compose logs --tail=50 scheduler          # each run, with the command's output

@@ -122,7 +122,7 @@ class PushAndOpenPrJob implements ShouldQueue
     }
 
     /**
-     * @return ?array{number: int, url: string, head_sha: string} null only when cancelled mid-flight
+     * @return ?array{number: int, url: string, head_sha: string} null when cancelled mid-flight or waiting for credits
      */
     private function pushViaGithubMcp(
         Run $run,

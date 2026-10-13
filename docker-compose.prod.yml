@@ -1,0 +1,118 @@
+# Production overrides for a single Linux VPS — layered on top of docker-compose.yml, never
+# used on its own:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# (docs/deploy-vps.md sets COMPOSE_FILE so plain `docker compose …` picks up both.)
+#
+# What changes from the dev setup:
+#   - `caddy` terminates TLS (automatic Let's Encrypt) and is the ONLY service with published
+#     ports; `app` no longer publishes 8420.
+#   - `caddy` sits on its own `edge_net` with `app` only, so it has no route to `db`.
+#   - MySQL gets a non-root app user and an unusable random root password — nothing runs as
+#     root/root, and no root password lives in .env (which the agent can read, see D11).
+#   - Local-repo browsing and the shared-PAT MCP push path are forced off (both single-tenant
+#     features, see .env.example), and /host-repos is an empty directory.
+#   - APP_ENV/APP_DEBUG/secure cookies/trusted proxy are pinned here rather than left to .env,
+#     so a stray .env line can't turn debug pages on in production.
+#   - Container logs are size-capped.
+#
+# Needs Docker Compose v2.24.4+ for the `!reset` / `!override` tags.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+# Shared by `app` and `worker`, merged into each service's base `environment` key by key.
+x-app-env: &app-env
+  APP_ENV: production
+  APP_DEBUG: "false"
+  DB_USERNAME: ${DB_USERNAME:-boschifai}
+  DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+  SESSION_SECURE_COOKIE: "true"
+  BOSCHIFAI_FEATURE_LOCAL_REPOS: "false"
+  BOSCHIFAI_FEATURE_GITHUB_MCP_PUSH: "false"
+
+services:
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: boschifai-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      BOSCHIFAI_DOMAIN: ${BOSCHIFAI_DOMAIN:?Set BOSCHIFAI_DOMAIN in .env}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge_net
+    depends_on:
+      - app
+    logging: *logging
+
+  app:
+    # Reached only through `caddy`. `!reset` drops the base file's 8420:8000 mapping instead of
+    # appending to it.
+    ports: !reset []
+    environment:
+      <<: *app-env
+      # Safe only because nothing outside this host can reach `app` directly (no published port;
+      # only `caddy`, `worker` and `db` share its networks). See config/trustedproxy.php.
+      TRUSTED_PROXIES: "*"
+      # PHP's built-in server is single-process by default — one slow request would block every
+      # other user. See docs/deploy-vps.md "Known limitations".
+      PHP_CLI_SERVER_WORKERS: ${PHP_CLI_SERVER_WORKERS:-4}
+    volumes:
+      # Same container path as the base file's mount, so it replaces it: an empty directory, since
+      # local-repo browsing is off on a shared install.
+      - ./var/no-local-repos:/host-repos:ro
+    networks:
+      - edge_net
+    logging: *logging
+
+  worker:
+    environment:
+      <<: *app-env
+    volumes:
+      - ./var/no-local-repos:/host-repos:ro
+    # queue:work finishes its current job on SIGTERM; give a step a little time before Docker
+    # kills it. Long steps will still be cut off — check nothing is running before a deploy.
+    stop_grace_period: 2m
+    logging: *logging
+
+  test-runner:
+    volumes:
+      - ./var/no-local-repos:/host-repos:ro
+    logging: *logging
+
+  db:
+    # `!override` replaces the base environment outright: the base file's MYSQL_ROOT_PASSWORD=root
+    # must not survive the merge.
+    environment: !override
+      MYSQL_DATABASE: boschifai
+      MYSQL_USER: ${DB_USERNAME:-boschifai}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # Applied on first initialisation of an empty data volume only.
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\" --silent"]
+    logging: *logging
+
+networks:
+  # `caddy` <-> `app` only. `app` stays on `boschifai_net` too (base file) for `db`.
+  edge_net:
+    driver: bridge
+
+volumes:
+  # Caddy's certificates and ACME account — losing this just means re-issuing, but keep it to stay
+  # clear of Let's Encrypt rate limits.
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local

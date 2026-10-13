@@ -396,6 +396,9 @@ Set these in `.env` before building (see `.env.example` for the full list with e
   `config/boschifai.php`'s `github_mcp` docblock). Leave blank to keep the default deterministic
   push path.
 
+For a production install on a single VPS (TLS via Caddy, no exposed DB, backups) see
+[`docs/deploy-vps.md`](docs/deploy-vps.md) and `docker-compose.prod.yml`.
+
 ### `auth.json` and other gitignored files
 
 A private Composer package pulled over SSH and authenticated via a gitignored `auth.json` is a

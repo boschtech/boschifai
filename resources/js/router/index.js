@@ -16,6 +16,8 @@ import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue';
 import AccountPage from '../pages/AccountPage.vue';
 import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue';
+import BillingPage from '../pages/BillingPage.vue';
+import BillingReturnPage from '../pages/BillingReturnPage.vue';
 import WorkspaceSettingsPage from '../pages/WorkspaceSettingsPage.vue';
 import store from '../store';
 import { createAuthGuard } from './authGuard';
@@ -34,6 +36,9 @@ const routes = [
     // everyone — the page adapts to whether, and as whom, the visitor is signed in.
     { path: '/invitations/:token', name: 'invitations.show', component: AcceptInvitationPage, props: true, meta: { public: true } },
     { path: '/settings/workspace', name: 'settings.workspace', component: WorkspaceSettingsPage, meta: { requiresManage: true } },
+    { path: '/billing', name: 'billing', component: BillingPage, meta: { requiresManage: true } },
+    // The payment provider sends the customer back here (see PaymentService::startCheckout).
+    { path: '/billing/payments/:id', name: 'billing.payment', component: BillingReturnPage, props: true, meta: { requiresManage: true } },
 
     // '/' is a standalone summary/landing page — deliberately NOT the runs list. The header
     // logo and "Home" button both point here; the sidebar's "All Runs" link points at

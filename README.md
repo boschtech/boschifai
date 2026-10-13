@@ -480,7 +480,11 @@ There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is 
 
 #### Buying credits
 
-Owners and admins buy credit packs (`BILLING_PACKS`) through a payment provider. Stripe, Paystack
+Owners and admins see the balance and buy credit packs (`BILLING_PACKS`) under **Settings →
+Billing**; a run paused for credits links there too. When the provider charges in another
+currency (e.g. ZAR), the exact amount is shown before leaving the app, and after paying the
+customer lands on a page that waits for the provider's confirmation. Packs are bought through a
+payment provider. Stripe, Paystack
 and PayFast plug in as adapters behind `App\Services\Payments\PaymentProvider`; none is
 implemented yet — which goes first is an open decision (see
 [docs/outstanding-decisions.md](docs/outstanding-decisions.md)). The provider-independent part is

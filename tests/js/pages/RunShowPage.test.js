@@ -95,6 +95,21 @@ describe('RunShowPage', () => {
             expect(actions.fetchRun).toHaveBeenCalledTimes(2);
         });
 
+        it('tells members whom to ask, and links owners and admins to billing', async () => {
+            await mountPage(awaiting());
+            expect(wrapper.text()).toContain('Ask a workspace owner or admin to add credits.');
+            expect(wrapper.find('a[href="/billing"]').exists()).toBe(false);
+            wrapper.destroy();
+
+            const env = makePageEnv({ runsState: { current: awaiting() } });
+            env.store.registerModule('auth', { namespaced: true, getters: { canManage: () => true } });
+            wrapper = mount(RunShowPage, { localVue: env.localVue, store: env.store, router: env.router, propsData: { id: 'run-1' } });
+            await flushPromises();
+
+            expect(wrapper.find('a[href="/billing"]').text()).toBe('Add credits');
+            expect(wrapper.text()).not.toContain('Ask a workspace owner or admin');
+        });
+
         it('can cancel the run instead', async () => {
             const { actions } = await mountPage(awaiting());
 

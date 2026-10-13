@@ -28,6 +28,7 @@ Owner = who has to make the call, not who implements it.
 | D8 | **A step with no hold while billing is enforced** — run it uncharged and report it (fail-open), or refuse it (fail-closed)? | Product | — | Fail-open + error report. One-line change to flip. |
 | D9 | **Deleting a run deletes its usage history** (`claude_invocations`), so usage reports lose those numbers. Options: archive instead of delete, or keep usage rows when a run is deleted. | Product / engineering | Accurate usage reporting once customers are billed | Charge records and ledger entries already survive a deleted run. |
 | D10 | **When to open self-registration**, and whether to add **GitHub sign-in**. | Product | Self-serve sign-up | Invitation-only; new workspaces via `boschifai:create-user`. |
+| D16 | **Should members see the credit balance?** Today only owners and admins see Billing; members only find out credits are low when a run pauses (they're told whom to ask). A read-only balance in the header is an option. | Product | — | Owners/admins only. |
 
 ### Security, privacy and operations
 

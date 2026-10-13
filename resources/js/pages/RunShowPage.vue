@@ -112,7 +112,15 @@
                     >
                         Cancel run
                     </button>
+                    <router-link
+                        v-if="canManage"
+                        :to="{ name: 'billing' }"
+                        class="self-center text-sm font-medium text-primary transition hover:text-primary-dark"
+                    >
+                        Add credits
+                    </router-link>
                 </div>
+                <p v-if="!canManage" class="mt-2 text-xs text-fg-muted">Ask a workspace owner or admin to add credits.</p>
             </div>
 
             <div v-else-if="run.state === 'failed'" class="rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
@@ -201,6 +209,11 @@ export default {
 
     computed: {
         ...mapGetters('runs', { run: 'current' }),
+
+        // Owners/admins can add credits themselves; everyone else is told whom to ask.
+        canManage() {
+            return Boolean(this.$store.getters['auth/canManage']);
+        },
 
         isRunningState() {
             return POLLING_STATES.includes(this.run?.state);

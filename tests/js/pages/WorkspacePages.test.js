@@ -320,10 +320,12 @@ describe('SidebarNav — settings', () => {
     it('shows the Workspace settings link to admins and owners only', async () => {
         await mountNav(true);
         expect(wrapper.find('a[href="/settings/workspace"]').text()).toBe('Workspace');
+        expect(wrapper.find('a[href="/billing"]').text()).toBe('Billing');
         wrapper.destroy();
 
         await mountNav(false);
         expect(wrapper.find('a[href="/settings/workspace"]').exists()).toBe(false);
+        expect(wrapper.find('a[href="/billing"]').exists()).toBe(false);
         expect(wrapper.findAll('h2').wrappers.map((h) => h.text())).not.toContain('Settings');
     });
 });

@@ -128,7 +128,7 @@ class HeadlessClaudeInvoker
                 '--verbose',
                 '--permission-mode', 'acceptEdits',
                 '--model', $credentials->model,
-                ...$this->hardening->cliArguments(),
+                ...$this->hardening->cliArguments($credentials->pinnedEnv),
                 ...($githubMcpPat ? [
                     '--mcp-config', config('boschifai.github_mcp.config_path'),
                     '--allowedTools', implode(',', self::PUSH_STEP_ALLOWED_TOOLS),

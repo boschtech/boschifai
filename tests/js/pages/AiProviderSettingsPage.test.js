@@ -118,6 +118,69 @@ describe('AiProviderSettingsPage', () => {
     });
 });
 
+describe('AiProviderSettingsPage — Amazon Bedrock', () => {
+    const BEDROCK_SETUP = { available: true, principal_arn: 'arn:aws:iam::999999999999:role/boschifai-worker', external_id: 'boschifai-abc123' };
+    const BEDROCK = {
+        provider: 'bedrock', secret_hint: 'BoschifAIBedrock', status: 'valid', validation_error: null, validated_at: '2026-10-13T10:00:00Z',
+        config: { role_arn: 'arn:aws:iam::123456789012:role/BoschifAIBedrock', region: 'eu-west-1', model: 'us.anthropic.claude-sonnet-4-6' },
+        bedrock: BEDROCK_SETUP,
+    };
+
+    it('only offers Bedrock when the server supports it', async () => {
+        await mountPage({ ...PLATFORM, bedrock: { available: false } });
+        expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+        wrapper.destroy();
+
+        await mountPage({ ...PLATFORM, bedrock: BEDROCK_SETUP });
+        expect(wrapper.findAll('[role="tab"]').wrappers.map((t) => t.text())).toEqual(['Anthropic API key', 'Amazon Bedrock']);
+    });
+
+    it('shows a trust policy for BoschifAI with this workspace\'s external ID, and the permissions to grant', async () => {
+        await mountPage({ ...PLATFORM, bedrock: BEDROCK_SETUP });
+        await wrapper.findAll('[role="tab"]').at(1).trigger('click');
+
+        const trust = JSON.parse(wrapper.find('[data-trust-policy]').text());
+        expect(trust.Statement[0].Principal.AWS).toBe(BEDROCK_SETUP.principal_arn);
+        expect(trust.Statement[0].Condition.StringEquals['sts:ExternalId']).toBe('boschifai-abc123');
+        const permissions = JSON.parse(wrapper.find('[data-permissions-policy]').text());
+        expect(permissions.Statement.flatMap((st) => [].concat(st.Action))).toEqual(expect.arrayContaining(['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream']));
+    });
+
+    it('saves the role, region and model', async () => {
+        const put = vi.fn(() => ({ data: BEDROCK }));
+        await mountPage({ ...PLATFORM, bedrock: BEDROCK_SETUP }, { 'PUT /api/workspace/ai-credentials': put });
+        await wrapper.findAll('[role="tab"]').at(1).trigger('click');
+
+        await wrapper.find('#role-arn').setValue(' arn:aws:iam::123456789012:role/BoschifAIBedrock ');
+        await wrapper.find('#region').setValue('eu-west-1');
+        await wrapper.find('#model').setValue('us.anthropic.claude-sonnet-4-6');
+        await wrapper.find('[data-bedrock-setup] form').trigger('submit');
+        await flushPromises();
+
+        expect(put).toHaveBeenCalledWith({ provider: 'bedrock', ...BEDROCK.config });
+        expect(wrapper.find('[role="status"]').text()).toBe('Saved. New runs use your Amazon Bedrock.');
+        expect(wrapper.find('[data-current]').text()).toContain("This workspace's own Amazon Bedrock");
+        expect(wrapper.find('[data-current]').text()).toContain('costs shown in BoschifAI are estimates');
+    });
+
+    it('opens on the saved Bedrock setup, and checks or stops it', async () => {
+        const removed = vi.fn(() => ({ data: { ...PLATFORM, bedrock: BEDROCK_SETUP } }));
+        await mountPage(BEDROCK, { 'POST /api/workspace/ai-credentials/check': { data: BEDROCK }, 'DELETE /api/workspace/ai-credentials': removed });
+
+        expect(wrapper.find('#role-arn').element.value).toBe(BEDROCK.config.role_arn);
+        expect(wrapper.find('[data-current]').text()).toContain('eu-west-1');
+        await button('Check access').trigger('click');
+        await flushPromises();
+
+        await button('Stop using Bedrock').trigger('click');
+        expect(wrapper.text()).toContain('Stop using Amazon Bedrock?');
+        const confirm = wrapper.findAll('button').filter((b) => b.text() === 'Stop using Bedrock');
+        await confirm.at(confirm.length - 1).trigger('click');
+        await flushPromises();
+        expect(removed).toHaveBeenCalled();
+    });
+});
+
 describe('aiProvider store', () => {
     it('knows whether the workspace uses its own key', () => {
         expect(aiProvider.getters.usesOwnKey({ credential: null })).toBe(false);

@@ -14,6 +14,7 @@ use App\Services\Billing\InsufficientCredits;
 use App\Services\Billing\StepBilling;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
+use App\Services\ClaudeRunner\Credentials\ClaudeCredentialsUnavailable;
 use App\Services\ClaudeRunner\Credentials\ResolvedClaudeCredentials;
 use App\Services\ClaudeRunner\HeadlessClaudeInvoker;
 use App\Services\Sandbox\RunWorkspaceManager;
@@ -49,7 +50,11 @@ class StepExecutionService
         }
 
         // Resolved first: whose credentials run the step decides whether credits are held at all.
-        $credentials = $this->credentials->resolveFor($run, $stepKey);
+        try {
+            $credentials = $this->credentials->resolveFor($run, $stepKey);
+        } catch (ClaudeCredentialsUnavailable $e) {
+            return $this->failWithoutCredentials($run, $stepKey, $e->getMessage());
+        }
 
         try {
             try {
@@ -170,6 +175,17 @@ class StepExecutionService
         ]);
 
         return new StepOutcome($result, $artifacts);
+    }
+
+    /** The step can't start (e.g. AWS refused the workspace's Bedrock role): it fails, with why. */
+    private function failWithoutCredentials(Run $run, string $stepKey, string $reason): StepOutcome
+    {
+        RunStep::updateOrCreate(
+            ['run_id' => $run->id, 'key' => $stepKey],
+            ['status' => RunStepStatus::Failed, 'finished_at' => now(), 'error_message' => $reason]
+        );
+
+        return new StepOutcome(ClaudeInvocationResult::notStarted($reason), collect());
     }
 
     /**

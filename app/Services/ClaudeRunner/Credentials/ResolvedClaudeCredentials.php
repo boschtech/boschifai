@@ -18,6 +18,8 @@ final class ResolvedClaudeCredentials
      * @param  list<string>  $secretsToRedact  removed from the transcript and error output
      * @param  (Closure(): void)|null  $cleanup  run once the invocation has finished, e.g. to
      *                                           delete a temporary credentials file
+     * @param  array<string, string>  $pinnedEnv  provider settings pinned over the repo's own
+     *                                            (endpoint, region…) — see ClaudeProcessHardening
      */
     public function __construct(
         public readonly array $env,
@@ -26,6 +28,7 @@ final class ResolvedClaudeCredentials
         public readonly ClaudeCredentialSource $source,
         public readonly array $secretsToRedact = [],
         private readonly ?Closure $cleanup = null,
+        public readonly array $pinnedEnv = [],
     ) {}
 
     public function cleanup(): void

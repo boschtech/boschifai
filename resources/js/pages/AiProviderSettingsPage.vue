@@ -15,21 +15,69 @@
                     <p class="text-fg-muted">Runs are paid for with this workspace's credits.</p>
                 </template>
                 <template v-else>
-                    <p class="font-medium text-fg-strong">This workspace's own Anthropic API key ({{ credential.secret_hint }})</p>
-                    <p class="text-fg-muted">Anthropic bills your account directly; runs don't use credits.</p>
+                    <template v-if="credential.provider === 'bedrock'">
+                        <p class="font-medium text-fg-strong">This workspace's own Amazon Bedrock</p>
+                        <p class="text-fg-muted">
+                            Role {{ credential.config.role_arn }} · {{ credential.config.region }} · {{ credential.config.model }}.
+                            AWS bills your account directly; runs don't use credits (costs shown in BoschifAI are estimates).
+                        </p>
+                    </template>
+                    <template v-else>
+                        <p class="font-medium text-fg-strong">This workspace's own Anthropic API key ({{ credential.secret_hint }})</p>
+                        <p class="text-fg-muted">Anthropic bills your account directly; runs don't use credits.</p>
+                    </template>
                     <p v-if="credential.status === 'valid'" class="mt-2 text-success" data-status>
                         Accepted by Anthropic<template v-if="credential.validated_at"> · checked {{ formatDate(credential.validated_at) }}</template>
                     </p>
                     <p v-else class="mt-2 text-danger" data-status>{{ credential.validation_error }}</p>
                     <div class="mt-3 flex gap-3">
-                        <button type="button" :disabled="busy" :class="secondaryButton" @click="check">Check key</button>
-                        <button type="button" :disabled="busy" :class="secondaryButton" @click="confirmingRemoval = true">Remove key</button>
+                        <button type="button" :disabled="busy" :class="secondaryButton" @click="check">{{ credential.provider === 'bedrock' ? 'Check access' : 'Check key' }}</button>
+                        <button type="button" :disabled="busy" :class="secondaryButton" @click="confirmingRemoval = true">{{ credential.provider === 'bedrock' ? 'Stop using Bedrock' : 'Remove key' }}</button>
                     </div>
                 </template>
             </section>
 
-            <section>
-                <h2 class="text-sm font-semibold text-fg mb-2">{{ usesOwnKey ? 'Replace the key' : 'Use your own Anthropic API key' }}</h2>
+            <div v-if="credential.bedrock && credential.bedrock.available" class="mb-4 flex gap-2" role="tablist">
+                <button
+                    v-for="option in [{ key: 'anthropic', label: 'Anthropic API key' }, { key: 'bedrock', label: 'Amazon Bedrock' }]"
+                    :key="option.key"
+                    type="button"
+                    role="tab"
+                    :aria-selected="String(setup === option.key)"
+                    :class="setup === option.key ? 'rounded-sm border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-fg-strong' : secondaryButton"
+                    @click="setup = option.key"
+                >
+                    {{ option.label }}
+                </button>
+            </div>
+
+            <section v-if="setup === 'bedrock'" data-bedrock-setup>
+                <h2 class="text-sm font-semibold text-fg mb-2">Use your own Amazon Bedrock</h2>
+                <p class="mb-2 text-sm text-fg-muted">
+                    BoschifAI never stores AWS keys: for each step it assumes a role in your AWS account for a
+                    short-lived session. In the AWS account that has Bedrock model access, create an IAM role with
+                    this <strong>trust policy</strong>:
+                </p>
+                <pre class="mb-3 overflow-x-auto rounded-sm border border-border bg-surface-alt p-3 text-xs text-fg" data-trust-policy>{{ trustPolicy }}</pre>
+                <p class="mb-2 text-sm text-fg-muted">and these <strong>permissions</strong>:</p>
+                <pre class="mb-3 overflow-x-auto rounded-sm border border-border bg-surface-alt p-3 text-xs text-fg" data-permissions-policy>{{ permissionsPolicy }}</pre>
+                <p class="mb-3 text-sm text-fg-muted">
+                    Saving checks the role end to end with one tiny model request (a fraction of a cent on your AWS bill).
+                </p>
+                <form class="grid gap-2" @submit.prevent="saveBedrock">
+                    <input id="role-arn" v-model="bedrock.role_arn" required placeholder="arn:aws:iam::123456789012:role/BoschifAIBedrock" aria-label="Role ARN" :class="field" />
+                    <div class="flex flex-wrap gap-2">
+                        <input id="region" v-model="bedrock.region" required placeholder="us-east-1" aria-label="AWS region" :class="field" />
+                        <input id="model" v-model="bedrock.model" required placeholder="us.anthropic.claude-sonnet-4-6" aria-label="Model (inference profile ID or ARN)" :class="field" />
+                    </div>
+                    <div>
+                        <button type="submit" :disabled="busy" :class="primaryButton">{{ busy ? 'Checking with AWS…' : 'Save and check' }}</button>
+                    </div>
+                </form>
+            </section>
+
+            <section v-else>
+                <h2 class="text-sm font-semibold text-fg mb-2">{{ credential.provider === 'anthropic' ? 'Replace the key' : 'Use your own Anthropic API key' }}</h2>
                 <form class="flex flex-wrap gap-2" @submit.prevent="save">
                     <input
                         id="api-key"
@@ -58,9 +106,9 @@
 
         <confirm-dialog
             :open="confirmingRemoval"
-            title="Remove this workspace's API key?"
+            :title="credential && credential.provider === 'bedrock' ? 'Stop using Amazon Bedrock?' : 'Remove this workspace\'s API key?'"
             message="Runs will go back to BoschifAI's Anthropic account and use this workspace's credits."
-            confirm-label="Remove key"
+            :confirm-label="credential && credential.provider === 'bedrock' ? 'Stop using Bedrock' : 'Remove key'"
             @confirm="remove"
             @cancel="confirmingRemoval = false"
         />
@@ -88,6 +136,10 @@ export default {
             actionError: null,
             saved: null,
             confirmingRemoval: false,
+            // Which setup form is showing.
+            setup: 'anthropic',
+            bedrock: { role_arn: '', region: '', model: '' },
+            field: 'min-w-0 flex-1 rounded-sm border border-border bg-surface px-3 py-2 text-sm text-fg transition focus:outline-none focus:border-primary',
             primaryButton: 'rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50',
             secondaryButton: 'rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt disabled:opacity-50',
         };
@@ -95,10 +147,47 @@ export default {
 
     computed: {
         ...mapGetters('aiProvider', ['credential', 'usesOwnKey', 'loading', 'error']),
+
+        trustPolicy() {
+            return JSON.stringify({
+                Version: '2012-10-17',
+                Statement: [{
+                    Effect: 'Allow',
+                    Principal: { AWS: this.credential.bedrock.principal_arn },
+                    Action: 'sts:AssumeRole',
+                    Condition: { StringEquals: { 'sts:ExternalId': this.credential.bedrock.external_id } },
+                }],
+            }, null, 2);
+        },
+
+        // The permissions Claude Code's Amazon Bedrock documentation lists.
+        permissionsPolicy() {
+            return JSON.stringify({
+                Version: '2012-10-17',
+                Statement: [
+                    {
+                        Effect: 'Allow',
+                        Action: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:GetInferenceProfile'],
+                        Resource: ['arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*', 'arn:aws:bedrock:*:*:foundation-model/*'],
+                    },
+                    { Effect: 'Allow', Action: 'bedrock:ListInferenceProfiles', Resource: '*' },
+                    {
+                        Effect: 'Allow',
+                        Action: ['aws-marketplace:ViewSubscriptions', 'aws-marketplace:Subscribe'],
+                        Resource: '*',
+                        Condition: { StringEquals: { 'aws:CalledViaLast': 'bedrock.amazonaws.com' } },
+                    },
+                ],
+            }, null, 2);
+        },
     },
 
-    created() {
-        this.$store.dispatch('aiProvider/fetchCredential');
+    async created() {
+        await this.$store.dispatch('aiProvider/fetchCredential');
+        if (this.credential?.provider === 'bedrock') {
+            this.setup = 'bedrock';
+            this.bedrock = { ...this.credential.config };
+        }
     },
 
     methods: {
@@ -120,6 +209,11 @@ export default {
             await this.run(() => this.$store.dispatch('aiProvider/saveKey', this.apiKey.trim()), 'Saved. New runs use this key.');
             // Never keep the key in the page longer than needed — even after a refusal.
             this.apiKey = '';
+        },
+
+        saveBedrock() {
+            const settings = Object.fromEntries(Object.entries(this.bedrock).map(([k, v]) => [k, v.trim()]));
+            return this.run(() => this.$store.dispatch('aiProvider/saveBedrock', settings), 'Saved. New runs use your Amazon Bedrock.');
         },
 
         check() {

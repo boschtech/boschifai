@@ -1,0 +1,67 @@
+name: Deploy
+
+# Deploys main to the VPS once the Quality Gate has passed on it (docs/deploy-vps.md §4). The
+# server side is docker/production/deploy.sh; the SSH key can run nothing else (forced command).
+#
+# Runs on: a push to main whose Quality Gate succeeded, or by hand (Actions → Deploy → Run
+# workflow) to redeploy main's latest commit.
+
+on:
+  workflow_run:
+    workflows: [Quality Gate]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, and a newer one never cancels one already running (that could stop it
+# between the fast-forward and the restart).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    # `branches: [main]` above matches on the branch NAME, so a fork's PR from its own "main"
+    # would match too: only a push to this repository's main deploys.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    # Includes waiting up to 30 minutes for running pipeline steps (DEPLOY_WAIT_MINUTES).
+    timeout-minutes: 60
+    environment:
+      name: production
+      url: https://boschifai.boschtechnologies.com
+    steps:
+      - name: Deploy over SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ] || [ -z "$DEPLOY_KNOWN_HOSTS" ] || [ -z "$DEPLOY_HOST" ]; then
+            echo "::error::Set DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS and DEPLOY_HOST on the production environment (docs/deploy-vps.md §4)."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned host key: never trust whatever answers on first connect.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The forced command on the server ignores everything but the SHA.
+          ssh -i ~/.ssh/deploy_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            "deploy@$DEPLOY_HOST" "$SHA"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

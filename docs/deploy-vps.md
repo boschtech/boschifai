@@ -167,6 +167,79 @@ config built in one container would be wrong in the other.
 
 ## 4. Routine deploy
 
+Merging to `main` deploys automatically. When the Quality Gate passes on `main`,
+`.github/workflows/deploy.yml` connects over SSH and runs `docker/production/deploy.sh <sha>`,
+which:
+
+1. waits up to 30 minutes for running pipeline steps to finish (stopping the worker kills a
+   running step after 2 minutes), and gives up if they don't;
+2. runs `backup.sh`;
+3. fast-forwards `main` to that commit (only a commit already on `origin/main`), builds, installs
+   dependencies, builds the frontend and recreates `app`, `worker`, `scheduler` and `test-runner`.
+   Migrations run as `app` and `worker` start;
+4. checks `/up` for up to 90 seconds. If any of steps 3–4 fails, it goes back to the previous
+   commit, restarts on that and fails the workflow. **Migrations aren't reversed:** if one changed
+   data, restore the backup from step 2.
+
+Deploys run one at a time. A commit that's already deployed, or older than what's deployed, is
+skipped. To redeploy `main` by hand: Actions → Deploy → Run workflow. The workflow log is public
+(the repo is), so the script never prints `.env` values.
+
+### Setting up automatic deploys (once)
+
+Merge the PR that adds `deploy.sh` first, then put it on the server by hand. The workflow can't
+run a script that isn't there yet:
+
+```bash
+cd /opt/boschifai && git pull --ff-only    # then the manual steps below, once
+```
+
+**Deploy key.** Its own key, not your personal one. On your machine:
+
+```bash
+ssh-keygen -t ed25519 -N '' -C github-actions-deploy -f ./boschifai-deploy
+```
+
+On the server, as `deploy`, add the **public** key to `~/.ssh/authorized_keys`, locked to the
+deploy script. `restrict` turns off port forwarding, agent forwarding and a terminal, so a leaked
+key can trigger a deploy of a commit already on `main` and nothing else:
+
+```text
+restrict,command="/opt/boschifai/docker/production/deploy.sh" ssh-ed25519 AAAA… github-actions-deploy
+```
+
+**Pinned host key.** From your machine, then compare the fingerprint with the one the server
+prints for itself (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`) before trusting it:
+
+```bash
+ssh-keyscan -t ed25519 <server> > ./boschifai-known-hosts
+ssh-keygen -lf ./boschifai-known-hosts
+```
+
+**GitHub.** Create a `production` environment limited to `main` (Settings → Environments →
+production → Deployment branches → Selected branches → `main`). Optionally add yourself as a
+required reviewer, so each deploy waits for one click. Then add its secrets:
+
+```bash
+gh secret set DEPLOY_SSH_KEY --env production < ./boschifai-deploy
+gh secret set DEPLOY_KNOWN_HOSTS --env production < ./boschifai-known-hosts
+gh secret set DEPLOY_HOST --env production --body "<server>"    # hostname or IP; the user is `deploy`
+rm ./boschifai-deploy ./boschifai-known-hosts
+```
+
+Check it with Actions → Deploy → Run workflow: on an up-to-date server it logs "Nothing to do".
+
+### Deploying by hand
+
+If GitHub is unavailable, run the same script as `deploy` with the commit to deploy:
+
+```bash
+cd /opt/boschifai
+git fetch origin main && docker/production/deploy.sh "$(git rev-parse origin/main)"
+```
+
+Or step by step:
+
 ```bash
 cd /opt/boschifai
 
@@ -188,8 +261,9 @@ docker compose up -d                          # anything else whose config chang
 curl -fsS https://boschifai.boschtechnologies.com/up
 ```
 
-**Rollback:** `git checkout <previous-sha>`, repeat step 3, and restore the pre-deploy backup if
-a migration changed data. Better still, roll back to the VM snapshot.
+**Rollback:** `git reset --hard <previous-sha>` (stay on `main`: `deploy.sh` refuses a detached
+checkout), repeat step 3, and restore the pre-deploy backup if a migration changed data. Better
+still, roll back to the VM snapshot. The next merge to `main` deploys forward again.
 
 ## 5. Backups
 

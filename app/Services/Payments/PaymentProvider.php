@@ -15,11 +15,18 @@ interface PaymentProvider
     /** Short id used in config, URLs and the payments table, e.g. "stripe". */
     public function key(): string;
 
-    /** ISO 4217 currency the provider charges in, e.g. "USD" or "ZAR". */
-    public function chargeCurrency(): string;
+    /**
+     * ISO 4217 currencies the provider can charge customers in, e.g. ["ZAR"]; the buyer picks one.
+     *
+     * @return list<string>
+     */
+    public function chargeCurrencies(): array;
 
-    /** Starts a hosted checkout for $payment and returns where to send the customer. */
-    public function createCheckout(Payment $payment, string $returnUrl, string $cancelUrl): CheckoutSession;
+    /**
+     * Starts a hosted checkout for $payment (in $payment->charge_currency) and returns where to
+     * send the customer. $buyerEmail is passed because some providers require one for receipts.
+     */
+    public function createCheckout(Payment $payment, string $returnUrl, string $cancelUrl, string $buyerEmail): CheckoutSession;
 
     /** Whether the webhook really came from the provider (signature over the raw body). */
     public function verifyWebhook(Request $request): bool;

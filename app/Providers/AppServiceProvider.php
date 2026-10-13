@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
 use App\Services\ClaudeRunner\Credentials\WorkspaceCredentialResolver;
 use App\Services\Payments\PaymentProviderRegistry;
+use App\Services\Payments\Providers\PaystackProvider;
 use App\Support\CurrentWorkspace;
 use App\Support\Security\CredentialsEncrypter;
 use Illuminate\Support\ServiceProvider;
@@ -24,8 +25,15 @@ class AppServiceProvider extends ServiceProvider
         // one, otherwise the platform's.
         $this->app->bind(ClaudeCredentialResolver::class, WorkspaceCredentialResolver::class);
 
-        // Payment provider adapters register here as they're implemented.
-        $this->app->singleton(PaymentProviderRegistry::class);
+        // Payment provider adapters; one is offered only when configured AND in PAYMENTS_ENABLED.
+        $this->app->singleton(PaymentProviderRegistry::class, function () {
+            $registry = new PaymentProviderRegistry;
+            if (config('payments.providers.paystack.secret_key')) {
+                $registry->register(new PaystackProvider);
+            }
+
+            return $registry;
+        });
         $this->app->singleton(CredentialsEncrypter::class);
     }
 

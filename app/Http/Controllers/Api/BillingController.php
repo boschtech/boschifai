@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 /** The workspace's credits and buying more (owners and admins). */
 class BillingController extends Controller
 {
-    public function show(CurrentWorkspace $current, CreditLedger $ledger, PaymentProviderRegistry $providers)
+    public function show(CurrentWorkspace $current, CreditLedger $ledger, PaymentProviderRegistry $providers, PaymentService $payments)
     {
         $balance = $ledger->balance($current->get());
 
@@ -30,7 +30,11 @@ class BillingController extends Controller
                 'credits_usd' => MicroUsd::format(MicroUsd::parse($pack['credits_usd']), 2),
                 'price_usd' => MicroUsd::format(MicroUsd::parse($pack['price_usd']), 2),
             ])->values(),
-            'providers' => array_map(fn ($p) => ['key' => $p->key(), 'currency' => strtoupper($p->chargeCurrency())], $providers->enabled()),
+            // Only providers a buyer can actually pay with — at least one usable currency.
+            'providers' => collect($providers->enabled())
+                ->map(fn ($p) => ['key' => $p->key(), 'currencies' => $payments->currenciesFor($p)])
+                ->filter(fn ($p) => $p['currencies'] !== [])
+                ->values(),
             'payments' => Payment::forWorkspace($current->id())->latest('id')->limit(20)->get()->map(fn (Payment $p) => $this->paymentData($p)),
         ]]);
     }
@@ -40,10 +44,11 @@ class BillingController extends Controller
         $validated = $request->validate([
             'pack' => ['required', 'string', 'max:50'],
             'provider' => ['required', 'string', 'max:20'],
+            'currency' => ['required', 'string', 'size:3'],
         ]);
 
         try {
-            [$payment, $session] = $payments->startCheckout($current->get(), $request->user(), $validated['pack'], $validated['provider']);
+            [$payment, $session] = $payments->startCheckout($current->get(), $request->user(), $validated['pack'], $validated['provider'], $validated['currency']);
         } catch (PaymentUnavailable $e) {
             abort(422, $e->getMessage());
         }

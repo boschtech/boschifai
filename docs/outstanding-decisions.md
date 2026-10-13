@@ -13,9 +13,7 @@ Owner = who has to make the call, not who implements it.
 
 | # | Decision | Owner | Blocks | Current state in code |
 |---|---|---|---|---|
-| D1 | **Which payment provider goes first** — Stripe, Paystack or PayFast. Suggest whichever Sinov8 already has a merchant account with. | Product / finance | First real provider adapter | Payments core (checkout, signed + confirmed webhooks, credits granted once) is provider-agnostic and tested against a fake provider. `PAYMENTS_ENABLED` lists the providers to offer. |
-| D2 | **Per provider: can it charge and settle in USD for a South African entity?** PayFast is expected to be ZAR-only. Each provider's webhook signature scheme and server-to-server confirm endpoint must be checked against its current docs. | Finance + engineering | Each provider adapter | Nothing assumed; each adapter declares its charge currency. |
-| D3 | **FX for ZAR-charging providers** — which exchange-rate source, how often it's refreshed, and the buffer added on top. | Finance | Any ZAR checkout | Admin-set `PAYMENTS_FX_ZAR_RATE` + `PAYMENTS_FX_ZAR_BUFFER`, quoted and stored per payment; no rate = ZAR checkout unavailable. |
+| D3 | **FX for ZAR-charging providers** — which exchange-rate source, how often it's refreshed, and the buffer added on top. **Now blocking: Paystack charges in ZAR.** | Finance | Any ZAR checkout (i.e. every Paystack purchase) | Admin-set `PAYMENTS_FX_ZAR_RATE` + `PAYMENTS_FX_ZAR_BUFFER`, quoted and stored per payment; no rate = ZAR checkout unavailable. |
 | D4 | **Credit pricing** — markup, minimum charge per step, and each step's hold (`BILLING_MARKUP`, `BILLING_MIN_CHARGE_USD`, `BILLING_HOLD_*_USD`). Calibrate with `php artisan boschifai:billing-report`. | Finance | Switching on `BILLING_ENFORCE` | Unset: steps priced at cost, shadow mode. |
 | D5 | **Credit packs** — sizes and prices. | Product / finance | Checkout | `BILLING_PACKS` (e.g. `starter:10:10,team:50:45`); none set = nothing can be bought. |
 | D6 | **Compliance for prepaid credits** — VAT and tax invoices; SARB exchange-control rules for USD-priced sales; consumer-protection rules on credit expiry and refunds. | Compliance / finance | Charging any customer | Credits never expire. Refund and chargeback webhooks aren't handled yet (planned: a ledger reversal) — today they'd be recorded and ignored. |
@@ -48,6 +46,9 @@ Owner = who has to make the call, not who implements it.
 | — | Sign-in method | Email + password (Fortify); GitHub sign-in optional later (see D10) | 2026-10-12 |
 | — | Credit currency | USD (1 credit = US$1) | 2026-10-12 |
 | — | Payment providers | Support Stripe, Paystack and PayFast behind one interface (order: D1) | 2026-10-12 |
+| D1 | First payment provider | **Paystack.** Stripe isn't available to an SA-registered company (its SA signup routes to Paystack); PayFast stays a possible second provider (SnapScan/Zapper, USD display) | 2026-10-13 |
+| D2 | Can providers charge/settle in USD for an SA entity? | No (as of 2026-10-13): Paystack SA charges and settles in ZAR only (USD only for Kenya/Nigeria businesses); PayFast settles in ZAR (its multi-currency pricing only lets buyers pay in USD/EUR/GBP/AUD with a markup). Recheck if Paystack enables USD for SA | 2026-10-13 |
+| — | How customers pay | Packs are priced in USD; the buyer chooses the currency to pay in from those the provider can charge (configurable per provider — ZAR for Paystack today) and sees the exact amount before paying | 2026-10-13 |
 | — | Laravel version | Upgraded to 12 (fixes the email-rule CRLF advisory) | 2026-10-12 |
 | D17 | Encryption of stored provider keys | A dedicated key, `BOSCHIFAI_CREDENTIALS_KEY` (AES-256-GCM), with previous-key support and `boschifai:rotate-credentials-key` | 2026-10-13 |
 | — | Vertex authentication | Service-account key uploaded by the customer, stored encrypted (D17), written per step to an owner-only temp file; a token proxy with no stored key was considered and set aside | 2026-10-13 |

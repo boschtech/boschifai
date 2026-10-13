@@ -14,7 +14,7 @@ function billingData(overrides = {}) {
         available_usd: '12.50',
         held_usd: '0.00',
         packs: [STARTER, TEAM],
-        providers: [{ key: 'stripe', currency: 'USD' }],
+        providers: [{ key: 'stripe', currencies: ['USD'] }],
         payments: [],
         ...overrides,
     };
@@ -76,26 +76,27 @@ describe('BillingPage', () => {
         await button('Buy credits').trigger('click');
         await flushPromises();
 
-        expect(posted).toHaveBeenCalledWith({ pack: 'team', provider: 'stripe' });
+        expect(posted).toHaveBeenCalledWith({ pack: 'team', provider: 'stripe', currency: 'USD' });
         expect(redirect).toHaveBeenCalledWith('https://pay.example.test/7');
     });
 
     it('shows the exact amount before paying in another currency, and can go back', async () => {
         const posted = vi.fn(() => ({ data: { id: 8, charge: '855.44', charge_currency: 'ZAR', credits_usd: '50.00', redirect_url: 'https://pay.example.test/8' } }));
         const { redirect } = await mountBilling({
-            data: billingData({ providers: [{ key: 'stripe', currency: 'USD' }, { key: 'payfast', currency: 'ZAR' }] }),
+            data: billingData({ providers: [{ key: 'stripe', currencies: ['USD'] }, { key: 'payfast', currencies: ['ZAR'] }] }),
             api: { 'POST /api/billing/checkout': posted },
         });
 
         const picker = wrapper.findComponent(SelectDropdown);
         await picker.find('button').trigger('click');
-        expect(picker.findAll('[role="option"]').wrappers.map((o) => o.text())).toEqual(['Stripe', 'PayFast (ZAR)']);
+        expect(picker.findAll('[role="option"]').wrappers.map((o) => o.text())).toEqual(['Stripe', 'PayFast']);
         await picker.findAll('[role="option"]').at(1).trigger('click');
+        expect(wrapper.find('[data-pay-in]').text()).toBe('in ZAR');
         await wrapper.find('[data-pack="team"]').trigger('click');
         await button('Buy credits').trigger('click');
         await flushPromises();
 
-        expect(posted).toHaveBeenCalledWith({ pack: 'team', provider: 'payfast' });
+        expect(posted).toHaveBeenCalledWith({ pack: 'team', provider: 'payfast', currency: 'ZAR' });
         expect(redirect).not.toHaveBeenCalled();
         expect(wrapper.find('[data-quote]').text()).toContain("You'll be charged ZAR 855.44 for 50.00 credits.");
 
@@ -105,6 +106,24 @@ describe('BillingPage', () => {
         await flushPromises();
         await button('Continue to payment').trigger('click');
         expect(redirect).toHaveBeenCalledWith('https://pay.example.test/8');
+    });
+
+    it('lets the buyer choose the currency when the provider offers several', async () => {
+        const posted = vi.fn(() => ({ data: { id: 9, charge: '10.00', charge_currency: 'USD', credits_usd: '10.00', redirect_url: 'https://checkout.paystack.com/x' } }));
+        const { redirect } = await mountBilling({ data: billingData({ providers: [{ key: 'paystack', currencies: ['ZAR', 'USD'] }] }), api: { 'POST /api/billing/checkout': posted } });
+
+        expect(wrapper.text()).toContain('Prices are in US dollars.');
+        expect(wrapper.text()).toContain('Paid with Paystack');
+        const currency = wrapper.findAll('[aria-label="Pay in"]').at(0);
+        expect(currency.text()).toBe('ZAR');
+        await currency.trigger('click');
+        await wrapper.findAll('[role="option"]').filter((o) => o.text() === 'USD').at(0).trigger('click');
+        await wrapper.find('[data-pack="starter"]').trigger('click');
+        await button('Buy credits').trigger('click');
+        await flushPromises();
+
+        expect(posted).toHaveBeenCalledWith({ pack: 'starter', provider: 'paystack', currency: 'USD' });
+        expect(redirect).toHaveBeenCalledWith('https://checkout.paystack.com/x');
     });
 
     it('says why a checkout was refused', async () => {

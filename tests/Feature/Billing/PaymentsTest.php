@@ -55,7 +55,7 @@ class PaymentsTest extends TestCase
 
     private function checkout(string $pack = 'team'): Payment
     {
-        $id = $this->postJson('/api/billing/checkout', ['pack' => $pack, 'provider' => 'fake'])->assertCreated()->json('data.id');
+        $id = $this->postJson('/api/billing/checkout', ['pack' => $pack, 'provider' => 'fake', 'currency' => 'USD'])->assertCreated()->json('data.id');
 
         return Payment::findOrFail($id);
     }
@@ -84,7 +84,7 @@ class PaymentsTest extends TestCase
 
     public function test_a_usd_provider_is_charged_the_pack_price(): void
     {
-        $quote = app(PaymentService::class)->quote('team', $this->provider);
+        $quote = app(PaymentService::class)->quote('team', $this->provider, 'usd');
 
         $this->assertSame(['credits_micro' => 50_000_000, 'price_usd_micro' => 45_500_000, 'charge_currency' => 'USD', 'charge_amount_minor' => 4550], array_slice($quote, 0, 4));
         $this->assertNull($quote['fx_rate']);
@@ -94,7 +94,7 @@ class PaymentsTest extends TestCase
     {
         config(['payments.fx.ZAR' => ['rate' => '18.2531', 'buffer' => '0.03', 'source' => 'admin']]);
 
-        $quote = app(PaymentService::class)->quote('team', new FakePaymentProvider('ZAR'));
+        $quote = app(PaymentService::class)->quote('team', new FakePaymentProvider(['ZAR']), 'ZAR');
 
         // 45.50 × 18.2531 = 830.516050; × 1.03 = 855.431531… → R855.44
         $this->assertSame(['ZAR', 85544, '18.2531', 'admin'], [$quote['charge_currency'], $quote['charge_amount_minor'], $quote['fx_rate'], $quote['fx_source']]);
@@ -105,9 +105,13 @@ class PaymentsTest extends TestCase
     {
         config(['payments.fx.ZAR.rate' => null]);
 
-        foreach ([['team', new FakePaymentProvider('ZAR'), "Payments in ZAR aren't available yet."], ['huge', $this->provider, 'That credit pack is not available.']] as [$pack, $provider, $message]) {
+        foreach ([
+            ['team', new FakePaymentProvider(['ZAR']), 'ZAR', "Payments in ZAR aren't available with this payment method."],
+            ['team', $this->provider, 'EUR', "Payments in EUR aren't available with this payment method."],
+            ['huge', $this->provider, 'USD', 'That credit pack is not available.'],
+        ] as [$pack, $provider, $currency, $message]) {
             try {
-                app(PaymentService::class)->quote($pack, $provider);
+                app(PaymentService::class)->quote($pack, $provider, $currency);
                 $this->fail('Expected the quote to be refused.');
             } catch (PaymentUnavailable $e) {
                 $this->assertSame($message, $e->getMessage());
@@ -119,7 +123,7 @@ class PaymentsTest extends TestCase
 
     public function test_an_admin_starts_a_checkout_and_is_sent_to_the_provider(): void
     {
-        $response = $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake'])->assertCreated();
+        $response = $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake', 'currency' => 'USD'])->assertCreated();
 
         $payment = Payment::sole();
         $this->assertSame([PaymentStatus::Pending, "fake_ref_{$payment->id}", 4550, 'USD', 50_000_000], [$payment->status, $payment->provider_ref, $payment->charge_amount_minor, $payment->charge_currency, $payment->credits_micro]);
@@ -132,14 +136,55 @@ class PaymentsTest extends TestCase
 
     public function test_checkout_is_refused_for_a_disabled_provider_or_unknown_pack(): void
     {
-        $this->postJson('/api/billing/checkout', ['pack' => 'huge', 'provider' => 'fake'])->assertStatus(422)->assertJsonPath('message', 'That credit pack is not available.');
+        $this->postJson('/api/billing/checkout', ['pack' => 'huge', 'provider' => 'fake', 'currency' => 'USD'])->assertStatus(422)->assertJsonPath('message', 'That credit pack is not available.');
 
         config(['payments.enabled' => []]);
-        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake'])->assertStatus(422)->assertJsonPath('message', 'That payment method is not available.');
-        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'stripe'])->assertStatus(422);
+        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake', 'currency' => 'USD'])->assertStatus(422)->assertJsonPath('message', 'That payment method is not available.');
+        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'stripe', 'currency' => 'USD'])->assertStatus(422);
 
-        $this->postJson('/api/billing/checkout', [])->assertJsonValidationErrors(['pack', 'provider']);
+        $this->postJson('/api/billing/checkout', [])->assertJsonValidationErrors(['pack', 'provider', 'currency']);
         $this->assertSame(0, Payment::count());
+    }
+
+    public function test_the_buyer_chooses_among_the_currencies_the_provider_can_charge(): void
+    {
+        $zar = new class(['ZAR', 'USD']) extends FakePaymentProvider
+        {
+            public function key(): string
+            {
+                return 'multi';
+            }
+        };
+        app(PaymentProviderRegistry::class)->register($zar);
+        config(['payments.enabled' => ['fake', 'multi'], 'payments.fx.ZAR' => ['rate' => '18', 'buffer' => '0', 'source' => 'admin']]);
+
+        $this->getJson('/api/billing')->assertJsonPath('data.providers', [
+            ['key' => 'fake', 'currencies' => ['USD']],
+            ['key' => 'multi', 'currencies' => ['ZAR', 'USD']],
+        ]);
+
+        $this->postJson('/api/billing/checkout', ['pack' => 'starter', 'provider' => 'multi', 'currency' => 'zar'])->assertCreated()
+            ->assertJsonPath('data.charge', '180.00')
+            ->assertJsonPath('data.charge_currency', 'ZAR');
+        $this->postJson('/api/billing/checkout', ['pack' => 'starter', 'provider' => 'fake', 'currency' => 'ZAR'])->assertStatus(422);
+
+        // Without an exchange rate, ZAR isn't offered — and a provider with nothing left isn't either.
+        config(['payments.fx.ZAR.rate' => null]);
+        $this->getJson('/api/billing')->assertJsonPath('data.providers', [['key' => 'fake', 'currencies' => ['USD']], ['key' => 'multi', 'currencies' => ['USD']]]);
+    }
+
+    public function test_a_checkout_the_provider_cannot_start_is_marked_failed_and_charges_nothing(): void
+    {
+        $this->provider->checkoutFails = true;
+
+        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake', 'currency' => 'USD'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', "Couldn't start the checkout with the payment provider. Nothing was charged — try again in a moment.");
+
+        $payment = Payment::sole();
+        $this->assertSame(PaymentStatus::Failed, $payment->status);
+        $this->assertNull($payment->provider_ref);
+        $this->assertSame(['Provider API is down'], $this->reported);
     }
 
     public function test_members_cannot_see_billing_or_buy_credits(): void
@@ -150,7 +195,7 @@ class PaymentsTest extends TestCase
         $this->actingAs($member);
 
         $this->getJson('/api/billing')->assertForbidden();
-        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake'])->assertForbidden();
+        $this->postJson('/api/billing/checkout', ['pack' => 'team', 'provider' => 'fake', 'currency' => 'USD'])->assertForbidden();
     }
 
     // ── Webhooks ───────────────────────────────────────────────────────────────────────
@@ -298,7 +343,7 @@ class PaymentsTest extends TestCase
                 ['key' => 'starter', 'credits_usd' => '10.00', 'price_usd' => '10.00'],
                 ['key' => 'team', 'credits_usd' => '50.00', 'price_usd' => '45.50'],
             ])
-            ->assertJsonPath('data.providers', [['key' => 'fake', 'currency' => 'USD']])
+            ->assertJsonPath('data.providers', [['key' => 'fake', 'currencies' => ['USD']]])
             ->assertJsonPath('data.payments.0.status', 'succeeded');
 
         $this->getJson("/api/billing/payments/{$payment->id}")->assertOk()->assertJsonPath('data.status', 'succeeded');

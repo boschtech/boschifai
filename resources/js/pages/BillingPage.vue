@@ -51,15 +51,28 @@
                         </button>
                     </div>
 
+                    <p class="mb-3 text-xs text-fg-muted">
+                        Prices are in US dollars. You'll see the exact amount in the currency you pay with before paying.
+                    </p>
+
                     <div class="flex flex-wrap items-center gap-3">
                         <select-dropdown
                             v-if="providers.length > 1"
                             id="payment-provider"
-                            v-model="selectedProvider"
+                            :value="selectedProvider"
                             :options="providerOptions"
                             aria-label="Pay with"
+                            @input="chooseProvider"
                         />
                         <span v-else class="text-sm text-fg-muted">Paid with {{ providerLabel(providers[0]) }}</span>
+                        <select-dropdown
+                            v-if="currencies.length > 1"
+                            id="payment-currency"
+                            v-model="selectedCurrency"
+                            :options="currencies.map((c) => ({ value: c, label: c }))"
+                            aria-label="Pay in"
+                        />
+                        <span v-else-if="currencies.length" class="text-sm text-fg-muted" data-pay-in>in {{ currencies[0] }}</span>
                         <button type="button" :disabled="!selectedPack || busy" :class="primaryButton" @click="buy">
                             {{ busy ? 'Starting checkout…' : 'Buy credits' }}
                         </button>
@@ -124,6 +137,7 @@ export default {
         return {
             selectedPack: null,
             selectedProvider: null,
+            selectedCurrency: null,
             busy: false,
             buyError: null,
             quote: null,
@@ -135,6 +149,10 @@ export default {
     computed: {
         ...mapGetters('billing', ['billing', 'packs', 'providers', 'payments', 'loading', 'error']),
 
+        currencies() {
+            return this.providers.find((p) => p.key === this.selectedProvider)?.currencies ?? [];
+        },
+
         providerOptions() {
             return this.providers.map((p) => ({ value: p.key, label: this.providerLabel(p) }));
         },
@@ -142,7 +160,7 @@ export default {
 
     async created() {
         await this.$store.dispatch('billing/fetchBilling');
-        this.selectedProvider = this.providers[0]?.key ?? null;
+        this.chooseProvider(this.providers[0]?.key ?? null);
     },
 
     methods: {
@@ -150,7 +168,7 @@ export default {
             this.busy = true;
             this.buyError = null;
             try {
-                const checkout = await this.$store.dispatch('billing/checkout', { pack: this.selectedPack, provider: this.selectedProvider });
+                const checkout = await this.$store.dispatch('billing/checkout', { pack: this.selectedPack, provider: this.selectedProvider, currency: this.selectedCurrency });
                 // USD: the price on the pack is what's charged. Anything else: confirm the amount first.
                 if (checkout.charge_currency === 'USD') {
                     this.redirect(checkout.redirect_url);
@@ -164,11 +182,16 @@ export default {
             }
         },
 
+        // Each provider charges in its own currencies; pick its first one when switching.
+        chooseProvider(key) {
+            this.selectedProvider = key;
+            this.selectedCurrency = this.currencies[0] ?? null;
+        },
+
         money: formatMoney,
 
         providerLabel(provider) {
-            const name = PROVIDER_NAMES[provider.key] ?? provider.key;
-            return provider.currency === 'USD' ? name : `${name} (${provider.currency})`;
+            return PROVIDER_NAMES[provider.key] ?? provider.key;
         },
 
         statusLabel(status) {

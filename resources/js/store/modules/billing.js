@@ -42,8 +42,8 @@ const actions = {
     },
 
     // Starts a checkout; resolves with the pending payment and the provider's checkout URL.
-    async checkout(_ctx, { pack, provider }) {
-        const { data } = await window.axios.post('/api/billing/checkout', { pack, provider });
+    async checkout(_ctx, { pack, provider, currency }) {
+        const { data } = await window.axios.post('/api/billing/checkout', { pack, provider, currency });
         return data.data;
     },
 

@@ -86,6 +86,11 @@ services:
     stop_grace_period: 2m
     logging: *logging
 
+  scheduler:
+    environment:
+      <<: *app-env
+    logging: *logging
+
   test-runner:
     volumes:
       - ./var/no-local-repos:/host-repos:ro

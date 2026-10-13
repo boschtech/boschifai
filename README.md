@@ -561,7 +561,8 @@ A hold that was never settled (the worker died mid-step) is returned by:
 php artisan boschifai:release-stale-holds   # only holds older than the longest step timeout + 30 min
 ```
 
-There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is on.
+The `scheduler` container runs it every hour, together with the exchange-rate refresh (see
+*Scheduled commands* below).
 
 #### Buying credits
 
@@ -573,9 +574,9 @@ as adapters behind `App\Services\Payments\PaymentProvider`. **Paystack** is impl
 PayFast may follow (see [docs/outstanding-decisions.md](docs/outstanding-decisions.md)).
 
 - `POST /api/billing/checkout` (pack, provider, currency) quotes the pack in the chosen currency
-  (USD as priced, or e.g. ZAR at `PAYMENTS_FX_ZAR_RATE` plus `PAYMENTS_FX_ZAR_BUFFER`, rounded up
-  to the cent — a currency without a rate isn't offered), records a pending payment and returns the
-  provider's checkout URL. If the provider can't start the checkout, the payment is marked failed
+  (USD as priced, or e.g. ZAR at the current exchange rate plus `PAYMENTS_FX_ZAR_BUFFER`, rounded up
+  to the cent — see *Exchange rates* below; a currency without a fresh rate isn't offered), records
+  a pending payment and returns the provider's checkout URL. If the provider can't start the checkout, the payment is marked failed
   and nothing is charged.
 - **Credits are granted only by the provider's webhook** (`POST /webhooks/payments/{provider}` —
   outside the web and api groups: no session, CSRF or sign-in). It must carry a valid signature
@@ -588,10 +589,38 @@ PayFast may follow (see [docs/outstanding-decisions.md](docs/outstanding-decisio
 - `GET /api/billing` returns the balance, packs, providers with the currencies each can be paid
   in, and recent payments; `GET /api/billing/payments/{id}` is what the return page polls.
 
+#### Exchange rates
+
+Rand (and any other non-USD) quotes use the **European Central Bank's daily reference rate**
+(free and official; published around 16:00 CET on working days; per euro, so the US-dollar rate is
+the cross rate) plus a buffer — **15%** by default (`PAYMENTS_FX_ZAR_BUFFER=0.15`). The rate, its
+source and date are stored with every payment.
+
+```bash
+php artisan boschifai:refresh-exchange-rates   # the scheduler runs this every hour
+```
+
+Safeguards: a rate older than `PAYMENTS_FX_MAX_AGE_DAYS` (default 4 — covers weekends and holidays)
+is never used, so that currency simply isn't offered until a fresh one arrives; a day-to-day move
+larger than `PAYMENTS_FX_MAX_CHANGE` (default 5%) isn't stored and the command fails and reports
+it (more likely a feed error than the market). `PAYMENTS_FX_ZAR_RATE` is an admin override
+(rand per US dollar) that wins over the feed — e.g. during an outage; leave it empty normally.
+
+#### Scheduled commands
+
+`routes/console.php` schedules `boschifai:refresh-exchange-rates` and
+`boschifai:release-stale-holds` **every hour, at half past** (the ECB's daily rate is picked up
+within the hour of publication and a failed run is retried the next hour; stale holds are
+returned within the hour). Docker runs them in the
+**`scheduler`** container (`php artisan schedule:work`, same image as `app`); outside Docker run
+`php artisan schedule:work` yourself, or call `php artisan schedule:run` from cron every minute.
+`php artisan schedule:list` shows what runs next.
+
 #### Paystack
 
 Paystack charges and settles in **ZAR only** for a South African business (USD charging is only
-offered to businesses in Kenya and Nigeria), so ZAR purchases need an exchange rate (D3).
+offered to businesses in Kenya and Nigeria), so ZAR purchases use the exchange rate above — run
+`boschifai:refresh-exchange-rates` daily, or nothing can be bought once the last rate is stale.
 
 1. In the Paystack dashboard (Settings → API Keys & Webhooks) set the **webhook URL** to
    `{APP_URL}/webhooks/payments/paystack`.
@@ -601,8 +630,7 @@ offered to businesses in Kenya and Nigeria), so ZAR purchases need an exchange r
    PAYSTACK_SECRET_KEY=sk_test_…        # sk_live_… in production
    PAYSTACK_CURRENCIES=ZAR              # what Paystack lets this account charge
    PAYMENTS_ENABLED=paystack
-   PAYMENTS_FX_ZAR_RATE=…               # rand per US dollar (finance — D3)
-   PAYMENTS_FX_ZAR_BUFFER=…             # e.g. 0.03 for 3%
+   PAYMENTS_FX_ZAR_BUFFER=0.15          # on top of the ECB rate (finance — D3)
    BILLING_PACKS=starter:10:10,team:50:45
    ```
 

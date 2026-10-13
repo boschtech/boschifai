@@ -33,6 +33,7 @@ class PaymentService
     public function __construct(
         private PaymentProviderRegistry $providers,
         private CreditLedger $ledger,
+        private ExchangeRates $rates,
     ) {}
 
     /**
@@ -62,15 +63,18 @@ class PaymentService
             ];
         }
 
-        $fx = config("payments.fx.{$currency}");
-        $rate = MicroUsd::parseOptional($fx['rate'] ?? null);
-        $buffer = MicroUsd::parseOptional($fx['buffer'] ?? null) ?? 0;
+        $fx = $this->rates->current($currency);
+        if ($fx === null) {
+            throw new PaymentUnavailable("Payments in {$currency} aren't available right now.");
+        }
+        $rate = $fx['rate_millionths'];
+        $buffer = MicroUsd::parseOptional(config("payments.fx.{$currency}.buffer")) ?? 0;
         $local = MicroUsd::multiply(MicroUsd::multiply($price, $rate), MicroUsd::PER_USD + $buffer);
 
         return [
             'credits_micro' => $credits, 'price_usd_micro' => $price, 'charge_currency' => $currency,
             'charge_amount_minor' => $this->toCentsRoundingUp($local),
-            'fx_rate' => (string) $fx['rate'], 'fx_source' => (string) ($fx['source'] ?? 'admin'), 'fx_quoted_at' => now(),
+            'fx_rate' => $fx['rate'], 'fx_source' => $fx['source'], 'fx_quoted_at' => now(),
         ];
     }
 
@@ -84,7 +88,7 @@ class PaymentService
     {
         return array_values(array_filter(
             array_map('strtoupper', $provider->chargeCurrencies()),
-            fn (string $currency) => $currency === 'USD' || (MicroUsd::parseOptional(config("payments.fx.{$currency}.rate")) ?? 0) > 0,
+            fn (string $currency) => $currency === 'USD' || $this->rates->current($currency) !== null,
         ));
     }
 

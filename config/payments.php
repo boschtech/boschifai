@@ -22,16 +22,27 @@ return [
         ],
     ],
 
-    // Exchange rates for providers that charge in a currency other than USD (credits are always
-    // USD). The customer is quoted price × rate × (1 + buffer), rounded up to the cent, and that
-    // quote is stored with the payment. Rate source, refresh and buffer are a finance decision
-    // (docs/outstanding-decisions.md D3) — a currency without a rate can't be charged.
+    // Currencies other than USD that customers can pay in (credits are always USD). The customer
+    // is quoted price × rate × (1 + buffer), rounded up to the cent, and the quote — with the rate
+    // and its source — is stored with the payment (docs/outstanding-decisions.md D3).
+    //   rate:   optional admin override (units per US dollar); normally empty, so the latest ECB
+    //           reference rate is used (see fx_feed)
+    //   buffer: added on top of the rate, e.g. 0.15 = 15%
     'fx' => [
         'ZAR' => [
             'rate' => env('PAYMENTS_FX_ZAR_RATE'),
-            'buffer' => env('PAYMENTS_FX_ZAR_BUFFER', '0'),
-            'source' => env('PAYMENTS_FX_ZAR_SOURCE', 'admin'),
+            'buffer' => env('PAYMENTS_FX_ZAR_BUFFER', '0.15'),
         ],
+    ],
+
+    // The European Central Bank's daily reference rates, fetched by
+    // `php artisan boschifai:refresh-exchange-rates` (run daily).
+    'fx_feed' => [
+        'ecb_url' => env('PAYMENTS_FX_ECB_URL', 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'),
+        // Older than this (weekends and holidays have no new rate) and the currency isn't offered.
+        'max_age_days' => (int) env('PAYMENTS_FX_MAX_AGE_DAYS', 4),
+        // A day-to-day move larger than this (0.05 = 5%) isn't used — likely a feed error.
+        'max_change' => env('PAYMENTS_FX_MAX_CHANGE', '0.05'),
     ],
 
 ];

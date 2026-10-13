@@ -89,8 +89,8 @@ class PushAndOpenPrJob implements ShouldQueue
                 $pr = $this->pushViaGithubMcp($run, $branchName, $prService, $steps, $prompts, $transcriptParser);
 
                 if ($pr === null) {
-                    // Cancelled mid-flight — StepExecutionService/CancellationChecker already
-                    // marked the run Cancelled and created its own step row; nothing left to do.
+                    // Cancelled mid-flight, or waiting for credits — StepExecutionService already
+                    // updated the run and its step row; nothing left to do.
                     return;
                 }
             } else {
@@ -147,6 +147,10 @@ class PushAndOpenPrJob implements ShouldQueue
         );
 
         $outcome = $steps->run($run, RunStepKey::Push->value, $prompt, config('boschifai.claude.timeouts.push'));
+
+        if ($outcome->halted) {
+            return null; // waiting (e.g. for credits): StepExecutionService already updated the run
+        }
 
         if ($outcome->claudeResult->cancelled) {
             return null;

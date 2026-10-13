@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     Route::post('/runs/{run}/local-execution/fix-failing-tests', [RunController::class, 'fixFailingTests']);
     Route::get('/runs/{run}/coverage-report/{path}', [RunController::class, 'coverageReport'])->where('path', '.*');
     Route::post('/runs/{run}/cancel', [RunController::class, 'cancel']);
+    Route::post('/runs/{run}/resume', [RunController::class, 'resume']);
     Route::post('/runs/{run}/archive', [RunController::class, 'archive']);
     Route::post('/runs/{run}/unarchive', [RunController::class, 'unarchive']);
 

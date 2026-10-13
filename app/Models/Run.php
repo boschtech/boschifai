@@ -35,6 +35,7 @@ class Run extends Model
         'previous_run_id',
         'blocked_reason',
         'failed_step',
+        'awaiting_credits_step',
         'error_message',
         'rejection_comment',
         'created_by',

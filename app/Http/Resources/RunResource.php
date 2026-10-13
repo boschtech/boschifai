@@ -92,6 +92,7 @@ class RunResource extends JsonResource
             'blocked_reason' => $this->blocked_reason,
             'failed_step' => $this->failed_step,
             'failed_step_id' => $failedStep?->id,
+            'awaiting_credits_step' => $this->awaiting_credits_step,
             'error_message' => $this->error_message,
             'rejection_comment' => $this->rejection_comment,
 

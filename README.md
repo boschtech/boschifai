@@ -421,12 +421,22 @@ write path:
   (`StepExecutionService`/`HeadlessClaudeInvoker`) and nothing else ever authenticates against
   that key. Also linked directly from the header badge.
 
-### Credits (shadow mode)
+### Credits
 
-Usage will be paid for with prepaid credits: **1 credit = US$1**, stored as integer micro-dollars
-so nothing is rounded through a float. This release runs in **shadow mode** — every Claude step is
-priced and recorded in `invocation_charges`, but no credits are held or charged and nothing is
-ever blocked. A pricing error is reported and never stops a pipeline.
+Usage is paid for with prepaid credits: **1 credit = US$1**, stored as integer micro-dollars so
+nothing is rounded through a float. Every Claude step is priced and recorded in
+`invocation_charges`; a pricing error is reported and never stops a pipeline.
+
+- **`BILLING_ENFORCE=false` (default) — shadow mode.** No credits are held or charged and nothing
+  is blocked; the charges are only recorded, for calibration.
+- **`BILLING_ENFORCE=true`.** Before each Claude step its **hold** is reserved from the
+  workspace's credits; when the step ends the charge is taken from the hold and the rest
+  returned (a crash returns all of it). A run that can't cover its next step **pauses** in
+  *Awaiting credits* instead of failing — add credits, then press **Resume** on the run (or
+  cancel it). Starting a run, retrying a step, approving a gate or fixing tests is refused up
+  front with HTTP 402 and the amounts when the workspace can't cover that step. Only switch on
+  once every step's hold is set and workspaces have credits: a step with no hold still runs,
+  uncharged, and is reported as an error so it gets fixed.
 
 How a step is priced (`App\Services\Billing\SettlementPolicy`, figures from `config/billing.php`):
 
@@ -458,8 +468,16 @@ php artisan boschifai:adjust-credits acme-rentals 25 --reason="Starting credit"
 
 The ledger (`credit_ledger_entries`) is append-only, every movement carries an idempotency key (a
 repeated job or webhook never moves credits twice), and the cached `workspace_credit_balances`
-always equal the ledger's sums. Enforcement (holds before each step, pausing a run that runs out
-of credit) and buying credits come in later releases.
+always equal the ledger's sums.
+
+A hold that was never settled (the worker died mid-step) is returned by:
+
+```bash
+php artisan boschifai:release-stale-holds   # only holds older than the longest step timeout + 30 min
+```
+
+There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is on. Buying
+credits (Stripe, Paystack, PayFast) comes in a later release.
 
 ## API reference
 
@@ -475,7 +493,7 @@ All endpoints are under `/api` (`routes/api.php`). None are authenticated (see
 | POST | `/runs/{run}/local-execution/rerun` | Re-run local test execution |
 | POST | `/runs/{run}/local-execution/fix-failing-tests` | Ask Claude to fix failing generated tests in place |
 | GET | `/runs/{run}/coverage-report/{path}` | Serve the per-run HTML coverage report |
-| POST | `/runs/{run}/cancel`, `/archive`, `/unarchive` | Run lifecycle |
+| POST | `/runs/{run}/cancel`, `/resume`, `/archive`, `/unarchive` | Run lifecycle (`/resume` restarts a run waiting for credits) |
 | POST | `/runs/{run}/approvals/gap-analysis` | Gate 1 decision |
 | POST | `/runs/{run}/approvals/push` | Gate 2 decision |
 | GET / DELETE | `/repo-configs`, `/repo-configs/{repoConfig}` | List or disconnect connected repos |

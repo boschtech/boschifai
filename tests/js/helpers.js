@@ -19,6 +19,7 @@ export function makePageEnv({ runsState = {}, runsActions = {}, repoConfigs = []
         decideGapAnalysis: vi.fn(() => Promise.resolve(null)),
         decidePush: vi.fn(() => Promise.resolve(null)),
         retryStep: vi.fn(() => Promise.resolve(null)),
+        resumeRun: vi.fn(() => Promise.resolve(null)),
         cancelRun: vi.fn(() => Promise.resolve(null)),
         rerunLocalExecution: vi.fn(() => Promise.resolve(null)),
         fixFailingTests: vi.fn(() => Promise.resolve(null)),

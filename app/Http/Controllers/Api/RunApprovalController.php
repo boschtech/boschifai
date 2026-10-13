@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ApprovalGate;
 use App\Enums\ArtifactKind;
 use App\Enums\RunState;
+use App\Enums\RunStepKey;
 use App\Enums\RunType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DecideGapAnalysisRequest;
@@ -16,6 +17,7 @@ use App\Jobs\RunGapAnalysisJob;
 use App\Jobs\RunTestCaseGenerationJob;
 use App\Models\Run;
 use App\Models\User;
+use App\Services\Billing\CreditGate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
@@ -27,11 +29,20 @@ use Illuminate\Support\Facades\File;
  */
 class RunApprovalController extends Controller
 {
-    public function gapAnalysis(DecideGapAnalysisRequest $request, Run $run)
+    public function gapAnalysis(DecideGapAnalysisRequest $request, Run $run, CreditGate $credits)
     {
         abort_unless($run->state === RunState::GapAnalysisReady, 422, 'Run is not awaiting the gap-analysis gate.');
 
         $decision = $request->validated('decision');
+        // Checked before the decision is recorded, so a refused click leaves the gate open.
+        $nextStep = match ($decision) {
+            'approved' => $run->run_type === RunType::Coverage ? RunStepKey::CodeGeneration : RunStepKey::TestCaseGeneration,
+            'changes_requested' => RunStepKey::GapAnalysis,
+            default => null,
+        };
+        if ($nextStep) {
+            $credits->assertCanStart($run->workspace, $nextStep->value);
+        }
 
         // Coverage mode's Gate 1 covers the codebase-analysis + test-design artifacts instead
         // of a testability review + test plan (see RunGapAnalysisJob/RunTestPlanJob) — the
@@ -123,11 +134,14 @@ class RunApprovalController extends Controller
         return $revised;
     }
 
-    public function push(DecidePushRequest $request, Run $run)
+    public function push(DecidePushRequest $request, Run $run, CreditGate $credits)
     {
         abort_unless($run->state === RunState::LocalExecutionComplete, 422, 'Run is not awaiting the push gate.');
 
         $decision = $request->validated('decision');
+        if ($decision === 'approved') {
+            $credits->assertCanStart($run->workspace, RunStepKey::Push->value);
+        }
 
         $generatedCode = $run->artifactOfKind(ArtifactKind::GeneratedTest->value);
         $hash = hash('sha256', $generatedCode?->content ?? '');

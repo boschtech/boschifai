@@ -103,6 +103,7 @@ describe('runs store actions', () => {
     it.each([
         ['retryStep', { id: 3, stepId: 9 }, '/api/runs/3/steps/9/retry'],
         ['cancelRun', 3, '/api/runs/3/cancel'],
+        ['resumeRun', 3, '/api/runs/3/resume'],
         ['rerunLocalExecution', 3, '/api/runs/3/local-execution/rerun'],
         ['fixFailingTests', 3, '/api/runs/3/local-execution/fix-failing-tests'],
     ])('%s posts to its endpoint and refetches the run', async (action, payload, url) => {

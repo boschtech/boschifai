@@ -3,11 +3,14 @@
 namespace App\Services\Pipeline;
 
 use App\Enums\ArtifactKind;
+use App\Enums\RunState;
 use App\Enums\RunStepStatus;
+use App\Models\CreditLedgerEntry;
 use App\Models\Run;
 use App\Models\RunArtifact;
 use App\Models\RunStep;
 use App\Services\ArtifactCollection\GitStatusDiffCollector;
+use App\Services\Billing\InsufficientCredits;
 use App\Services\Billing\StepBilling;
 use App\Services\ClaudeRunner\ClaudeInvocationResult;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
@@ -44,6 +47,29 @@ class StepExecutionService
             return new StepOutcome(ClaudeInvocationResult::cancelledBeforeStart(), collect());
         }
 
+        try {
+            $hold = $this->billing->begin($run, $stepKey);
+        } catch (InsufficientCredits $e) {
+            return $this->awaitCredits($run, $stepKey, $e);
+        }
+
+        try {
+            return $this->runHeld($run, $stepKey, $prompt, $timeoutSeconds, $hold);
+        } catch (\Throwable $e) {
+            // Crashed before the step could be settled: nothing is charged for it.
+            try {
+                $this->billing->abandon($hold);
+            } catch (\Throwable $releaseFailure) {
+                report($releaseFailure);
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Everything after the credit hold (if any) was taken; $hold is settled exactly once. */
+    private function runHeld(Run $run, string $stepKey, string $prompt, int $timeoutSeconds, ?CreditLedgerEntry $hold): StepOutcome
+    {
         $step = RunStep::updateOrCreate(
             ['run_id' => $run->id, 'key' => $stepKey],
             ['status' => RunStepStatus::Running, 'started_at' => now(), 'finished_at' => null, 'error_message' => null]
@@ -98,9 +124,10 @@ class StepExecutionService
             'timed_out' => $result->timedOut,
         ]);
 
-        // Shadow pricing must never break a pipeline: a failure here is reported, not thrown.
+        // Pricing must never break a pipeline: a failure here is reported, not thrown. (When
+        // enforced, the hold then stays held until boschifai:release-stale-holds returns it.)
         try {
-            $this->billing->recordShadowCharge($run, $stepKey, $invocation, $result);
+            $this->billing->finish($run, $stepKey, $invocation, $result, $hold);
         } catch (\Throwable $e) {
             report($e);
         }
@@ -140,5 +167,22 @@ class StepExecutionService
         ]);
 
         return new StepOutcome($result, $artifacts);
+    }
+
+    /**
+     * The workspace can't cover this step's hold: the step doesn't run and the run waits in
+     * awaiting_credits until someone adds credits and resumes it (RunController::resume).
+     */
+    private function awaitCredits(Run $run, string $stepKey, InsufficientCredits $e): StepOutcome
+    {
+        $message = $e->getMessage().' Add credits to this workspace, then resume the run.';
+
+        RunStep::updateOrCreate(
+            ['run_id' => $run->id, 'key' => $stepKey],
+            ['status' => RunStepStatus::Pending, 'finished_at' => null, 'error_message' => $message]
+        );
+        $run->update(['state' => RunState::AwaitingCredits, 'awaiting_credits_step' => $stepKey, 'error_message' => $message]);
+
+        return StepOutcome::halted($message);
     }
 }

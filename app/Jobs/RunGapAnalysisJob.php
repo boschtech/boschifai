@@ -112,6 +112,10 @@ class RunGapAnalysisJob implements ShouldQueue
             config('boschifai.claude.timeouts.gap_analysis'),
         );
 
+        if ($outcome->halted) {
+            return; // waiting (e.g. for credits): StepExecutionService already updated the run
+        }
+
         if ($outcome->claudeResult->cancelled) {
             return; // state already updated by StepExecutionService/CancellationChecker
         }

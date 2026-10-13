@@ -73,6 +73,18 @@ const STATE_TO_STEP_INDEX = {
     cancelled: -1,
 };
 
+// awaiting_credits isn't tied to one stage: it pauses before whichever step couldn't be paid for.
+const AWAITING_STEP_TO_STEP_INDEX = {
+    gap_analysis: 0,
+    test_plan: 0,
+    test_case_generation: 2,
+    code_generation: 2,
+    fix_failing_tests: 2,
+    push: 5,
+    build_skills: 0,
+    build_knowledge_base: 0,
+};
+
 const BAD_TERMINAL_STATES = ['gap_analysis_rejected', 'push_rejected', 'generation_blocked', 'failed'];
 
 export default {
@@ -81,10 +93,15 @@ export default {
     props: {
         state: { type: String, required: true },
         runType: { type: String, default: 'requirement' },
+        awaitingStep: { type: String, default: null },
     },
 
     computed: {
         currentIndex() {
+            if (this.state === 'awaiting_credits') {
+                return AWAITING_STEP_TO_STEP_INDEX[this.awaitingStep] ?? 0;
+            }
+
             return STATE_TO_STEP_INDEX[this.state] ?? 0;
         },
 

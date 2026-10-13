@@ -56,6 +56,21 @@ class ClaudeInvocationResult
     }
 
     /** For a guard that fires before any process was ever started (e.g. a pre-check). */
+    /** For a step that never started because something outside Claude stopped it first. */
+    public static function notStarted(string $reason): self
+    {
+        return new self(
+            exitCode: -1,
+            timedOut: false,
+            rawTranscriptPath: '',
+            durationMs: 0,
+            totalCostUsd: null,
+            numTurns: null,
+            stopReason: null,
+            stderr: $reason,
+        );
+    }
+
     public static function cancelledBeforeStart(): self
     {
         return new self(

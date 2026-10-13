@@ -103,7 +103,8 @@ class ShadowBillingTest extends TestCase
     {
         $this->claudeReturns($this->invocation(0.1));
         $billing = Mockery::mock(StepBilling::class);
-        $billing->shouldReceive('recordShadowCharge')->andThrow(new RuntimeException('pricing exploded'));
+        $billing->shouldReceive('begin')->andReturnNull();
+        $billing->shouldReceive('finish')->andThrow(new RuntimeException('pricing exploded'));
         $this->app->instance(StepBilling::class, $billing);
         $reported = [];
         $this->app->make(ExceptionHandler::class)

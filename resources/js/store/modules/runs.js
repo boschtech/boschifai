@@ -89,6 +89,11 @@ const actions = {
         commit('REMOVE_FROM_LIST', id);
     },
 
+    async resumeRun({ dispatch }, id) {
+        await window.axios.post(`/api/runs/${id}/resume`);
+        return dispatch('fetchRun', id);
+    },
+
     async cancelRun({ dispatch }, id) {
         await window.axios.post(`/api/runs/${id}/cancel`);
         return dispatch('fetchRun', id);

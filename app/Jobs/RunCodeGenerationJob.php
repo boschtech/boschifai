@@ -62,6 +62,10 @@ class RunCodeGenerationJob implements ShouldQueue
             config('boschifai.claude.timeouts.code_generation'),
         );
 
+        if ($outcome->halted) {
+            return; // waiting (e.g. for credits): StepExecutionService already updated the run
+        }
+
         if ($outcome->claudeResult->cancelled) {
             return;
         }

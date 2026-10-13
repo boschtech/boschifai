@@ -1,6 +1,6 @@
 # Deploying to a VPS (Hostinger KVM)
 
-Runs the whole stack — `caddy`, `app`, `worker`, `test-runner`, `db` — on one Linux VM with
+Runs the whole stack — `caddy`, `app`, `worker`, `scheduler`, `test-runner`, `db` — on one Linux VM with
 Docker Compose: `docker-compose.yml` plus the production overrides in
 `docker-compose.prod.yml`. Nothing here is Hostinger-specific beyond creating the VM; any Ubuntu
 VPS works the same way.
@@ -18,8 +18,8 @@ VPS works the same way.
 | VPS | Ubuntu 24.04, **≥ 4 vCPU / 8 GB RAM / 100 GB disk** to start. Each run does a `composer install` plus a full test suite in `test-runner`, and every connected repo keeps a checkout on disk. |
 | Data-centre region | Choose deliberately. Customer source code, user emails and payment records live here. If it's outside South Africa that's a cross-border transfer under POPIA s72. Confirm with compliance (compare D13). |
 | Domain | An A record (and AAAA, if the VPS has IPv6) pointing at the VPS. Caddy needs it resolving **before** first start to get a certificate. |
-| GitHub OAuth App | Callback URL `https://<domain>/github/callback`. Use a separate OAuth App from your dev one. |
-| Paystack | Webhook URL `https://<domain>/webhooks/payments/paystack`. Live keys only once D3–D6 are settled. |
+| GitHub OAuth App | Callback URL `https://boschifai.boschtechnologies.com/github/callback`. Use a separate OAuth App from your dev one. |
+| Paystack | Webhook URL `https://boschifai.boschtechnologies.com/webhooks/payments/paystack`. Live keys only once D3–D6 are settled. |
 | Secrets | `ANTHROPIC_API_KEY`, the GitHub OAuth secret and `PAYSTACK_SECRET_KEY` go into `.env` on the server (mode 600). `.env.example` says production should use AWS SSM. A VPS has no SSM, so this is a known gap for the team to accept or close. |
 
 ## 2. Prepare the server (once)
@@ -73,8 +73,8 @@ Edit `.env`. At a minimum:
 
 ```dotenv
 APP_NAME=BoschifAI
-APP_URL=https://<domain>
-BOSCHIFAI_DOMAIN=<domain>            # read by Caddy
+APP_URL=https://boschifai.boschtechnologies.com
+BOSCHIFAI_DOMAIN=boschifai.boschtechnologies.com            # read by Caddy
 
 DB_CONNECTION=mysql
 DB_HOST=db
@@ -118,7 +118,7 @@ Create the first user and check the deployment:
 
 ```bash
 docker compose exec app php artisan boschifai:create-user you@example.com --workspace="Boschifai"
-curl -fsS https://<domain>/up                 # 200 = app + TLS ok
+curl -fsS https://boschifai.boschtechnologies.com/up                 # 200 = app + TLS ok
 docker compose ps                             # all services "running"; db "healthy"
 docker compose logs --tail=50 worker          # "Processing jobs from the [default] queue"
 ```
@@ -147,9 +147,9 @@ docker compose run --rm --no-deps app sh -c "npm ci && npm run build"
 
 # 3. Restart. The source is bind-mounted, so a code-only change doesn't recreate the containers
 #    on its own. Migrations run as `app` and `worker` start.
-docker compose up -d --force-recreate app worker test-runner
+docker compose up -d --force-recreate app worker scheduler test-runner
 docker compose up -d                          # anything else whose config changed (caddy, db)
-curl -fsS https://<domain>/up
+curl -fsS https://boschifai.boschtechnologies.com/up
 ```
 
 **Rollback:** `git checkout <previous-sha>`, repeat step 3, and restore the pre-deploy backup if
@@ -180,26 +180,32 @@ Repo checkouts under `var/` aren't backed up. They're re-cloned from GitHub.
 
 ## 6. Scheduled commands
 
-The app has no scheduler yet (**D15**). Until that's decided, a host cron covers stale credit
-holds. The command's default threshold is the longest step timeout plus 30 minutes, so hourly is
-enough:
+The `scheduler` container runs Laravel's scheduler (`php artisan schedule:work`) — no host cron
+needed. **Every hour, at half past** (`routes/console.php`):
 
-```cron
-5 * * * * cd /opt/boschifai && COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml docker compose exec -T worker php artisan boschifai:release-stale-holds >> /var/log/boschifai-cron.log 2>&1
+- `boschifai:refresh-exchange-rates` — the ECB's daily reference rate for rand quotes. If it keeps
+  failing, rand payments stop once the last rate is 4 days old; check the scheduler's log.
+- `boschifai:release-stale-holds` — returns credit holds left by a worker that died mid-step.
+
+```bash
+docker compose logs --tail=50 scheduler          # each run, with the command's output
+docker compose exec scheduler php artisan schedule:list   # what's scheduled and when it runs next
 ```
+
+If you added the earlier hourly `release-stale-holds` host cron, remove it.
 
 ## 7. Operating it
 
 | Task | Command |
 | --- | --- |
-| Logs | `docker compose logs -f worker` (also `app`, `test-runner`, `caddy`). Capped at 5 × 20 MB per container. |
+| Logs | `docker compose logs -f worker` (also `app`, `scheduler`, `test-runner`, `caddy`). Capped at 5 × 20 MB per container. |
 | Laravel log | `tail -f storage/logs/laravel.log` |
 | Shell | `docker compose exec worker bash` |
 | Restart a stuck worker | `docker compose restart worker`. Any step it was running fails and needs re-running. |
 | Disk | `df -h /` and `du -sh var/boschifai/repos`. Checkouts grow with every connected repo. |
 | Rotate the credentials key | `php artisan boschifai:rotate-credentials-key` (see README) |
 
-Add uptime monitoring on `https://<domain>/up` and alert on failures. The org standard for
+Add uptime monitoring on `https://boschifai.boschtechnologies.com/up` and alert on failures. The org standard for
 errors is Sentry, which isn't wired into this app yet.
 
 ## Known limitations

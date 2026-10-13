@@ -143,6 +143,18 @@ services:
   # so there's no `.env`/`vendor/` here for the standalone poller script to ever accidentally
   # load (see docker/test-runner/poll.php's own docblock for why that matters even for code we
   # trust).
+  # Runs routes/console.php's schedule (exchange rates, stale credit holds). Same image as `app`;
+  # needs only the database and the app's own settings — no repos, no Anthropic key.
+  scheduler:
+    container_name: boschifai-scheduler
+    image: boschifai-app
+    restart: unless-stopped
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - app
+
   test-runner:
     container_name: boschifai-test-runner
     image: boschifai-app # same image as `app`/`worker` — reuses its PHP/Composer/gd/exif toolchain

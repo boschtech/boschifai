@@ -13,7 +13,6 @@ Owner = who has to make the call, not who implements it.
 
 | # | Decision | Owner | Blocks | Current state in code |
 |---|---|---|---|---|
-| D3 | **FX for ZAR-charging providers** — which exchange-rate source, how often it's refreshed, and the buffer added on top. **Now blocking: Paystack charges in ZAR.** | Finance | Any ZAR checkout (i.e. every Paystack purchase) | Admin-set `PAYMENTS_FX_ZAR_RATE` + `PAYMENTS_FX_ZAR_BUFFER`, quoted and stored per payment; no rate = ZAR checkout unavailable. |
 | D4 | **Credit pricing** — markup, minimum charge per step, and each step's hold (`BILLING_MARKUP`, `BILLING_MIN_CHARGE_USD`, `BILLING_HOLD_*_USD`). Calibrate with `php artisan boschifai:billing-report`. | Finance | Switching on `BILLING_ENFORCE` | Unset: steps priced at cost, shadow mode. |
 | D5 | **Credit packs** — sizes and prices. | Product / finance | Checkout | `BILLING_PACKS` (e.g. `starter:10:10,team:50:45`); none set = nothing can be bought. |
 | D6 | **Compliance for prepaid credits** — VAT and tax invoices; SARB exchange-control rules for USD-priced sales; consumer-protection rules on credit expiry and refunds. | Compliance / finance | Charging any customer | Credits never expire. Refund and chargeback webhooks aren't handled yet (planned: a ledger reversal) — today they'd be recorded and ignored. |
@@ -38,7 +37,6 @@ Owner = who has to make the call, not who implements it.
 | D14 | **Data retention periods** — expired/accepted invitations (invitee emails), audit-log IP addresses, run transcripts (contain customer source), payment webhook payloads. | Compliance | Retention clean-up jobs | Everything kept indefinitely. |
 | D19 | **How widely BoschifAI's AWS identity may assume roles** — `sts:AssumeRole` on any role (`arn:aws:iam::*:role/*`, relying on each customer's trust policy + external ID), or only roles with an agreed name prefix (e.g. `arn:aws:iam::*:role/BoschifAI*`, so customers must name their role that way). | Engineering leads / security | Production Bedrock | Not enforced in code; the IAM policy on `BOSCHIFAI_BEDROCK_PRINCIPAL_ARN` decides. Setup page suggests the name `BoschifAIBedrock`. |
 | D20 | **Production hosting for the first install** — a single VPS (`docs/deploy-vps.md`) means secrets live in a server-side `.env` rather than AWS SSM, PHP's built-in server fronts the app, there's one worker and no failover. Accept for a pilot, or choose a target (nginx + php-fpm; managed hosting such as ECS + EFS + RDS) before GA. Also: which data-centre region (POPIA s72). | Engineering leads / compliance | Production go-live | `docker-compose.prod.yml` + runbook for a VPS; nothing provisioned. |
-| D15 | **How scheduled jobs run** — there's no scheduler. `boschifai:release-stale-holds` (and later reconciliation) need one: an ECS scheduled task, a `schedule:work` container, or cron. | Ops / engineering | Enforcement in production | Commands exist; run manually or from cron. |
 
 ## Decided
 
@@ -48,6 +46,8 @@ Owner = who has to make the call, not who implements it.
 | — | Credit currency | USD (1 credit = US$1) | 2026-10-12 |
 | — | Payment providers | Support Stripe, Paystack and PayFast behind one interface (order: D1) | 2026-10-12 |
 | D1 | First payment provider | **Paystack.** Stripe isn't available to an SA-registered company (its SA signup routes to Paystack); PayFast stays a possible second provider (SnapScan/Zapper, USD display) | 2026-10-13 |
+| D15 | How scheduled jobs run | Laravel's scheduler in a dedicated `scheduler` container (`php artisan schedule:work`); `refresh-exchange-rates` and `release-stale-holds` run every hour (at :30) | 2026-10-13 |
+| D3 | Exchange rate for non-USD payments | The ECB's daily reference rate (cross rate per US dollar), refreshed daily by `boschifai:refresh-exchange-rates`, plus a **15% buffer** (`PAYMENTS_FX_ZAR_BUFFER`); stale (>4 days) or implausible (>5%/day) rates aren't used; an admin override exists. Note: 15% is well above typical currency-conversion margins (a few percent) — revisit if rand customers find it expensive | 2026-10-13 |
 | D2 | Can providers charge/settle in USD for an SA entity? | No (as of 2026-10-13): Paystack SA charges and settles in ZAR only (USD only for Kenya/Nigeria businesses); PayFast settles in ZAR (its multi-currency pricing only lets buyers pay in USD/EUR/GBP/AUD with a markup). Recheck if Paystack enables USD for SA | 2026-10-13 |
 | — | How customers pay | Packs are priced in USD; the buyer chooses the currency to pay in from those the provider can charge (configurable per provider — ZAR for Paystack today) and sees the exact amount before paying | 2026-10-13 |
 | — | Laravel version | Upgraded to 12 (fixes the email-rule CRLF advisory) | 2026-10-12 |

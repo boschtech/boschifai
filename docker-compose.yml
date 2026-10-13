@@ -124,6 +124,33 @@ services:
       db:
         condition: service_healthy
 
+  # Runs routes/console.php's schedule (exchange rates, stale credit holds, credit expiry). Same
+  # image as `app`; needs only the database and the app's own settings — no repos, no Anthropic
+  # key. Same network and DB_* overrides as `app`: without them it landed on Compose's `default`
+  # network (no route to `db`) and fell back to `.env`'s sqlite, so every scheduled command failed.
+  scheduler:
+    container_name: boschifai-scheduler
+    image: boschifai-app
+    restart: unless-stopped
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www/html
+    networks:
+      - boschifai_net
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: boschifai
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      QUEUE_CONNECTION: database
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+
   # Runs a connected repo's OWN `composer install` + test suite (see LocalTestRunner) — split out
   # from `worker` in direct response to a real incident: `worker` carries Boschifai's own live DB
   # credentials as ambient environment (needed for its own queue/app work), and a connected
@@ -143,18 +170,6 @@ services:
   # so there's no `.env`/`vendor/` here for the standalone poller script to ever accidentally
   # load (see docker/test-runner/poll.php's own docblock for why that matters even for code we
   # trust).
-  # Runs routes/console.php's schedule (exchange rates, stale credit holds). Same image as `app`;
-  # needs only the database and the app's own settings — no repos, no Anthropic key.
-  scheduler:
-    container_name: boschifai-scheduler
-    image: boschifai-app
-    restart: unless-stopped
-    command: php artisan schedule:work
-    volumes:
-      - .:/var/www/html
-    depends_on:
-      - app
-
   test-runner:
     container_name: boschifai-test-runner
     image: boschifai-app # same image as `app`/`worker` — reuses its PHP/Composer/gd/exif toolchain

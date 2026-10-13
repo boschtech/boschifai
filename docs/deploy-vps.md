@@ -24,26 +24,43 @@ VPS works the same way.
 
 ## 2. Prepare the server (once)
 
-As root on a fresh VM:
+As root on a fresh VM (tested on Ubuntu 26.04):
 
 ```bash
-# A deploy user; disable password SSH logins once your key works.
+# A deploy user with your SSH key. It has no password, so it can't sudo: anything that needs root
+# is done here, and root keeps key-only SSH for later admin work.
 adduser --disabled-password --gecos "" deploy
-usermod -aG sudo deploy
-rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
-sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/; s/^#\?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
-systemctl restart ssh
+install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+install -m 600 -o deploy -g deploy /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys
+# Check `ssh deploy@<server>` works from your machine before continuing.
+
+# Key-only SSH. A drop-in, not sshd_config: Hostinger's cloud-init drop-ins set
+# PasswordAuthentication yes, and sshd takes the first value it reads, so this file sorts first.
+cat > /etc/ssh/sshd_config.d/00-boschifai-hardening.conf <<'CONF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+CONF
+sshd -t && systemctl reload ssh
+sshd -T | grep -E '^(passwordauthentication|permitrootlogin) '   # expect: no / prohibit-password
 
 # Security updates install themselves.
-apt-get update && apt-get install -y unattended-upgrades && dpkg-reconfigure -plow unattended-upgrades
+export DEBIAN_FRONTEND=noninteractive
+apt-get update && apt-get install -y unattended-upgrades
+echo "unattended-upgrades unattended-upgrades/enable_auto_updates boolean true" | debconf-set-selections
+dpkg-reconfigure -f noninteractive unattended-upgrades
 
-# Firewall: SSH + web only.
-ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp && ufw enable
+# Firewall: SSH + web only. Set the same rules in hPanel's VPS firewall too, and sync it.
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp && ufw --force enable
 
 # Docker Engine + Compose plugin (Docker's own apt repository).
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker deploy
 docker compose version   # must be v2.24.4 or newer
+
+# Directories the deploy user owns (it can't create them itself without sudo).
+install -d -o deploy -g deploy /opt/boschifai /var/backups/boschifai
+install -m 640 -o deploy -g deploy /dev/null /var/log/boschifai-backup.log
 ```
 
 **Docker bypasses `ufw` for published ports.** That's why `docker-compose.prod.yml` publishes
@@ -57,8 +74,7 @@ before each deploy is a cheap rollback point.
 As `deploy`:
 
 ```bash
-sudo mkdir -p /opt/boschifai && sudo chown deploy:deploy /opt/boschifai
-git clone https://github.com/boschtech/boschifai.git /opt/boschifai   # read-only deploy key or token
+git clone https://github.com/boschtech/boschifai.git /opt/boschifai   # public repo: no key needed
 cd /opt/boschifai
 
 # Every `docker compose` call below picks up both files.
@@ -165,8 +181,7 @@ nightly in the `deploy` user's crontab (`crontab -e`):
 15 2 * * * /opt/boschifai/docker/production/backup.sh >> /var/log/boschifai-backup.log 2>&1
 ```
 
-(`sudo touch /var/log/boschifai-backup.log && sudo chown deploy /var/log/boschifai-backup.log`
-once, and `sudo mkdir -p /var/backups/boschifai && sudo chown deploy /var/backups/boschifai`.)
+(The backup directory and log file are created in §2.)
 
 **This copy stays on the same machine, which doesn't count as a backup.** Ship it off the box
 nightly to object storage in a region compliance has approved, for example S3 in `af-south-1`

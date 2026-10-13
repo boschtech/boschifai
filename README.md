@@ -421,6 +421,46 @@ write path:
   (`StepExecutionService`/`HeadlessClaudeInvoker`) and nothing else ever authenticates against
   that key. Also linked directly from the header badge.
 
+### Credits (shadow mode)
+
+Usage will be paid for with prepaid credits: **1 credit = US$1**, stored as integer micro-dollars
+so nothing is rounded through a float. This release runs in **shadow mode** — every Claude step is
+priced and recorded in `invocation_charges`, but no credits are held or charged and nothing is
+ever blocked. A pricing error is reported and never stops a pipeline.
+
+How a step is priced (`App\Services\Billing\SettlementPolicy`, figures from `config/billing.php`):
+
+| How the step ended | Charged |
+|---|---|
+| Finished, or failed on its own work (e.g. ran out of turns) | cost × markup, at least the minimum charge |
+| Stopped by the user | what was actually used, at cost |
+| The platform's fault: API key rejected, platform out of Anthropic credit, rate limit, overload, server error, timeout, CLI crash | nothing |
+
+The charge never exceeds the step's **hold** (the credits reserved before it runs); anything above
+it is absorbed by the platform and shows in the report.
+
+Markup, minimum charge and holds are **business decisions for finance** — they are unset by
+default (priced at cost). To calibrate them from real usage:
+
+```bash
+php artisan boschifai:billing-report --days=30
+# Per step: runs, charged/partial/free, cost avg/p95/max, hold, charged, absorbed — plus totals and margin.
+```
+
+A sensible starting point is a hold around each step's p95 cost × markup.
+
+Platform admins can add or remove a workspace's credits (needs a reason, asks for confirmation, is
+written to the audit log; credits can't go below zero):
+
+```bash
+php artisan boschifai:adjust-credits acme-rentals 25 --reason="Starting credit"
+```
+
+The ledger (`credit_ledger_entries`) is append-only, every movement carries an idempotency key (a
+repeated job or webhook never moves credits twice), and the cached `workspace_credit_balances`
+always equal the ledger's sums. Enforcement (holds before each step, pausing a run that runs out
+of credit) and buying credits come in later releases.
+
 ## API reference
 
 All endpoints are under `/api` (`routes/api.php`). None are authenticated (see

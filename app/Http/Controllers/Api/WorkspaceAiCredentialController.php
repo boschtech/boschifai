@@ -9,17 +9,22 @@ use App\Models\Workspace;
 use App\Models\WorkspaceAiCredential;
 use App\Services\ClaudeRunner\Credentials\AnthropicKeyValidator;
 use App\Services\ClaudeRunner\Credentials\BedrockAccessValidator;
+use App\Services\ClaudeRunner\Credentials\GoogleServiceAccountKey;
+use App\Services\ClaudeRunner\Credentials\VertexAccessValidator;
+use App\Services\ClaudeRunner\Credentials\VertexEndpoint;
 use App\Support\CurrentWorkspace;
 use App\Support\Security\CredentialsEncrypter;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
  * Settings → AI provider (owners and admins): run on the platform's key and credits, on the
- * workspace's own Anthropic API key, or on its own Amazon Bedrock (a role in its AWS account that
- * BoschifAI assumes per step — no AWS keys are stored). Settings are only saved once the provider
+ * workspace's own Anthropic API key, on its own Amazon Bedrock (a role in its AWS account that
+ * BoschifAI assumes per step — no AWS keys are stored), or on its own Google Vertex AI (a
+ * service-account key, stored encrypted). Settings are only saved once the provider
  * accepts them, and an API key is never sent back — responses show a hint ("…AbCd") only.
  */
 class WorkspaceAiCredentialController extends Controller
@@ -28,6 +33,9 @@ class WorkspaceAiCredentialController extends Controller
     private const AWS_REGION = '/^[a-z]{2}(-gov)?-[a-z]+-\d$/';
 
     private const ROLE_ARN = '/^arn:aws(-us-gov)?:iam::\d{12}:role\/[\w+=,.@\/-]{1,512}$/';
+
+    /** e.g. claude-sonnet-4-5@20250929, claude-opus-4-6[1m]. */
+    private const VERTEX_MODEL = '/^claude-[a-z0-9.-]+(@\d{8})?(\[1m\])?$/';
 
     /** An inference profile ID (us.anthropic.claude-…) or ARN. */
     private const BEDROCK_MODEL = '/^[\w.:\/-]{3,300}$/';
@@ -40,7 +48,7 @@ class WorkspaceAiCredentialController extends Controller
     public function update(Request $request, CurrentWorkspace $current, CredentialsEncrypter $encrypter)
     {
         $provider = $request->validate([
-            'provider' => ['sometimes', Rule::in(['anthropic', 'bedrock'])],
+            'provider' => ['sometimes', Rule::in(['anthropic', 'bedrock', 'vertex'])],
         ])['provider'] ?? 'anthropic';
 
         // Checked before anything is sent anywhere: without the dedicated encryption key nothing
@@ -50,9 +58,11 @@ class WorkspaceAiCredentialController extends Controller
             abort(503, "Using your own API key isn't available on this server yet. Contact BoschifAI support.");
         }
 
-        $credential = $provider === 'bedrock'
-            ? $this->saveBedrock($request, $current->get())
-            : $this->saveAnthropic($request, $current->get());
+        $credential = match ($provider) {
+            'bedrock' => $this->saveBedrock($request, $current->get()),
+            'vertex' => $this->saveVertex($request, $current->get()),
+            default => $this->saveAnthropic($request, $current->get()),
+        };
 
         AuditEvent::record('ai_credentials.saved', $current->get(), $request->user(), $credential, ['provider' => $provider, 'hint' => $credential->secret_hint]);
 
@@ -65,9 +75,11 @@ class WorkspaceAiCredentialController extends Controller
         $credential = WorkspaceAiCredential::activeFor($current->id());
         abort_unless($credential, 404, 'This workspace uses the platform key — there is no key of its own to check.');
 
-        [$outcome, $message] = $credential->provider === ClaudeCredentialSource::Bedrock
-            ? $this->checkBedrock($current->get(), $credential->config)
-            : app(AnthropicKeyValidator::class)->check($credential->secrets['api_key']);
+        [$outcome, $message] = match ($credential->provider) {
+            ClaudeCredentialSource::Bedrock => $this->checkBedrock($current->get(), $credential->config),
+            ClaudeCredentialSource::Vertex => app(VertexAccessValidator::class)->check(GoogleServiceAccountKey::fromArray($credential->secrets['service_account']), $credential->config['project_id'], $credential->config['region'], $credential->config['model']),
+            default => app(AnthropicKeyValidator::class)->check($credential->secrets['api_key']),
+        };
         abort_if($outcome === AnthropicKeyValidator::UNREACHABLE, 503, $message);
 
         $valid = $outcome === AnthropicKeyValidator::VALID;
@@ -124,6 +136,33 @@ class WorkspaceAiCredentialController extends Controller
         return $this->store($workspace, $request, ClaudeCredentialSource::Bedrock, [], $config, substr(strrchr($config['role_arn'], '/'), 1, 20));
     }
 
+    private function saveVertex(Request $request, Workspace $workspace): WorkspaceAiCredential
+    {
+        $input = $request->validate([
+            'service_account_key' => ['required', 'string', 'max:20000'],
+            'project_id' => ['nullable', 'string', 'regex:/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/'],
+            'region' => ['required', 'string', 'regex:'.VertexEndpoint::REGION],
+            'model' => ['required', 'string', 'regex:'.self::VERTEX_MODEL],
+        ], [
+            'project_id.regex' => 'Enter a Google Cloud project ID, e.g. acme-claude-prod.',
+            'region.regex' => 'Enter global, us, eu, or a region such as us-east5.',
+            'model.regex' => 'Enter a Vertex model ID, e.g. claude-sonnet-4-5@20250929.',
+        ]);
+
+        try {
+            $key = GoogleServiceAccountKey::fromJson($input['service_account_key']);
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['service_account_key' => $e->getMessage()]);
+        }
+        $config = ['project_id' => ($input['project_id'] ?? null) ?: $key->projectId(), 'region' => $input['region'], 'model' => $input['model'], 'client_email' => $key->clientEmail()];
+
+        [$outcome, $message] = app(VertexAccessValidator::class)->check($key, $config['project_id'], $config['region'], $config['model']);
+        $this->refuseUnlessValid($outcome, $message, 'service_account_key');
+
+        // The service account's email is the hint — the key itself is never shown again.
+        return $this->store($workspace, $request, ClaudeCredentialSource::Vertex, ['service_account' => $key->fields], $config, substr($key->clientEmail(), 0, 20));
+    }
+
     /** @return array{0: string, 1: ?string} */
     private function checkBedrock(Workspace $workspace, array $config): array
     {
@@ -160,8 +199,9 @@ class WorkspaceAiCredentialController extends Controller
             ...($credential ? [
                 'provider' => $credential->provider->value,
                 'secret_hint' => $credential->secret_hint,
-                // Bedrock's settings aren't secret (role ARN, region, model).
-                'config' => $credential->provider === ClaudeCredentialSource::Bedrock ? $credential->config : null,
+                // Bedrock's and Vertex's settings aren't secret (role, project, region, model,
+                // service-account email) — the Vertex key itself never leaves.
+                'config' => $credential->provider === ClaudeCredentialSource::Anthropic ? null : $credential->config,
                 'status' => $credential->status,
                 'validation_error' => $credential->validation_error,
                 'validated_at' => $credential->validated_at,

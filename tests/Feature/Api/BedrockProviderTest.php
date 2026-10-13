@@ -150,7 +150,7 @@ class BedrockProviderTest extends TestCase
     {
         $this->save(['role_arn' => 'BoschifAIBedrock', 'region' => 'Europe', 'model' => 'claude sonnet'])
             ->assertJsonValidationErrors(['role_arn', 'region', 'model']);
-        $this->putJson('/api/workspace/ai-credentials', ['provider' => 'vertex'])->assertJsonValidationErrors('provider');
+        $this->putJson('/api/workspace/ai-credentials', ['provider' => 'foundry'])->assertJsonValidationErrors('provider');
 
         $this->assertSame([], $this->aws->calls);
     }

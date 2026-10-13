@@ -34,7 +34,7 @@ Owner = who has to make the call, not who implements it.
 
 | # | Decision | Owner | Blocks | Current state in code |
 |---|---|---|---|---|
-| D11 | **Agent isolation (remaining Phase 0 gap)** — the agent can still read files the worker can read, including `.env`. Options for the team: run `claude` in a separate credential-less container, or put an API proxy in front that holds the key. Decide before platform credits go GA. | Engineering leads | Production multi-tenant use | Env allowlist, settings pinning and output redaction are in place. |
+| D11 | **Agent isolation (remaining Phase 0 gap)** — the agent can still read files the worker can read, including `.env`. Options for the team: run `claude` in a separate credential-less container, or put an API proxy in front that holds the key. Decide before platform credits go GA. | Engineering leads | Production multi-tenant use | Env allowlist, settings pinning and output redaction are in place. Note: with more than one worker on a machine, one workspace's agent could also read another workspace's Vertex key file while that step runs (`storage/app/private/ai-credentials`) — the same fix (isolated runner) covers it. |
 | D12 | **`BOSCHIFAI_CLAUDE_RESTRICTED_MODE`** — switch on? It confines file tools to the checkout and disables Bash, which changes what every step can do; needs a full pipeline run first. | Engineering | — | Off. |
 | D13 | **SES region** — a South African region keeps invitees' addresses in the country (POPIA s72), if SES is offered there for the account; otherwise confirm the cross-border transfer is acceptable. | Compliance / ops | Production email | `SES_REGION` configurable. |
 | D14 | **Data retention periods** — expired/accepted invitations (invitee emails), audit-log IP addresses, run transcripts (contain customer source), payment webhook payloads. | Compliance | Retention clean-up jobs | Everything kept indefinitely. |
@@ -50,4 +50,5 @@ Owner = who has to make the call, not who implements it.
 | — | Payment providers | Support Stripe, Paystack and PayFast behind one interface (order: D1) | 2026-10-12 |
 | — | Laravel version | Upgraded to 12 (fixes the email-rule CRLF advisory) | 2026-10-12 |
 | D17 | Encryption of stored provider keys | A dedicated key, `BOSCHIFAI_CREDENTIALS_KEY` (AES-256-GCM), with previous-key support and `boschifai:rotate-credentials-key` | 2026-10-13 |
+| — | Vertex authentication | Service-account key uploaded by the customer, stored encrypted (D17), written per step to an owner-only temp file; a token proxy with no stored key was considered and set aside | 2026-10-13 |
 | D18 | Platform fee for runs on a workspace's own key | No fee — own-key runs aren't charged | 2026-10-13 |

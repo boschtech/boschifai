@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * Where an invocation's AI credentials came from. Google Vertex comes later.
+ * Where an invocation's AI credentials came from.
  */
 enum ClaudeCredentialSource: string
 {
@@ -15,4 +15,7 @@ enum ClaudeCredentialSource: string
 
     /** The workspace's own Amazon Bedrock, through a role in its AWS account. */
     case Bedrock = 'bedrock';
+
+    /** The workspace's own Google Vertex AI, through a service account in its Google Cloud project. */
+    case Vertex = 'vertex';
 }

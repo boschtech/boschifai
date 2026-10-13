@@ -77,10 +77,6 @@ As `deploy`:
 git clone https://github.com/boschtech/boschifai.git /opt/boschifai   # public repo: no key needed
 cd /opt/boschifai
 
-# Every `docker compose` call below picks up both files.
-echo 'export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml' >> ~/.bashrc
-export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
-
 cp .env.example .env && chmod 600 .env
 mkdir -p var/no-local-repos var/boschifai/repos
 ```
@@ -88,6 +84,13 @@ mkdir -p var/no-local-repos var/boschifai/repos
 Edit `.env`. At a minimum:
 
 ```dotenv
+# Read by Docker Compose, not Laravel: every `docker compose` run in this directory layers the
+# production overrides, whoever runs it and from whatever shell. Don't rely on an exported
+# variable in one user's ~/.bashrc instead: on the first deploy a compose run without it
+# recreated app/worker/scheduler from the dev file alone (root/root DB login, crash loop, port
+# 8420 published).
+COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+
 APP_NAME=BoschifAI
 APP_URL=https://boschifai.boschtechnologies.com
 BOSCHIFAI_DOMAIN=boschifai.boschtechnologies.com            # read by Caddy
@@ -106,7 +109,23 @@ BOSCHIFAI_GITHUB_OAUTH_CLIENT_ID=...
 BOSCHIFAI_GITHUB_OAUTH_CLIENT_SECRET=...
 GITHUB_MCP_PAT=                      # leave blank; the MCP push path is forced off in production
 
-# Mail (SES), billing and Paystack: see README "Sending email" and "Credits".
+# Mail — SES (README "Sending email"), or any SMTP server. With Google Workspace's SMTP relay
+# (Admin console → Gmail → Routing → SMTP relay: only addresses in your domains, allow this
+# server's IPs, require TLS) no password is stored:
+MAIL_MAILER=smtp
+MAIL_HOST=smtp-relay.gmail.com
+MAIL_PORT=587
+MAIL_FROM_ADDRESS="no-reply@boschtechnologies.com"
+MAIL_FROM_NAME="BoschifAI"
+
+# Billing and Paystack: see README "Credits".
+```
+
+Check every container was created from both files — `app` crash-looping with "Access denied for
+user 'root'" means one wasn't:
+
+```bash
+docker inspect boschifai-app -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
 ```
 
 You don't need to set `APP_ENV`, `APP_DEBUG`, `SESSION_SECURE_COOKIE`, `TRUSTED_PROXIES` or the
@@ -139,7 +158,8 @@ docker compose ps                             # all services "running"; db "heal
 docker compose logs --tail=50 worker          # "Processing jobs from the [default] queue"
 ```
 
-Then do one complete pipeline run against a throwaway repo before anyone else signs in.
+Send a test email (`docker compose exec app php artisan boschifai:send-test-email you@example.com`),
+then do one complete pipeline run against a throwaway repo before anyone else signs in.
 
 **Don't run `php artisan config:cache` or `optimize`.** `app` and `worker` share the same source
 directory but have different environments (only `worker` has `ANTHROPIC_API_KEY`). A cached

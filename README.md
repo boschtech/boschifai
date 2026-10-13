@@ -603,7 +603,7 @@ PayFast may follow (see [docs/outstanding-decisions.md](docs/outstanding-decisio
 
 Rand (and any other non-USD) quotes use the **European Central Bank's daily reference rate**
 (free and official; published around 16:00 CET on working days; per euro, so the US-dollar rate is
-the cross rate) plus a buffer — **15%** by default (`PAYMENTS_FX_ZAR_BUFFER=0.15`). The rate, its
+the cross rate) plus a buffer — **8%** by default (`PAYMENTS_FX_ZAR_BUFFER=0.08`). The rate, its
 source and date are stored with every payment.
 
 ```bash
@@ -640,7 +640,7 @@ offered to businesses in Kenya and Nigeria), so ZAR purchases use the exchange r
    PAYSTACK_SECRET_KEY=sk_test_…        # sk_live_… in production
    PAYSTACK_CURRENCIES=ZAR              # what Paystack lets this account charge
    PAYMENTS_ENABLED=paystack
-   PAYMENTS_FX_ZAR_BUFFER=0.15          # on top of the ECB rate (finance — D3)
+   PAYMENTS_FX_ZAR_BUFFER=0.08          # on top of the ECB rate (finance — D3)
    BILLING_PACKS=starter:10:10,team:50:45
    ```
 

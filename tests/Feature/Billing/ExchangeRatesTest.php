@@ -34,7 +34,7 @@ class ExchangeRatesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['payments.fx.ZAR' => ['rate' => null, 'buffer' => '0.15'], 'payments.fx_feed.ecb_url' => self::FEED]);
+        config(['payments.fx.ZAR' => ['rate' => null, 'buffer' => '0.08'], 'payments.fx_feed.ecb_url' => self::FEED]);
         $this->ecb = [200, $this->feed('2026-10-13', ['USD' => '1.0845', 'ZAR' => '19.8765', 'GBP' => '0.8312'])];
         Http::fake([self::FEED => fn () => Http::response($this->ecb[1], $this->ecb[0])]);
         app(ExceptionHandler::class)->reportable(function (RuntimeException $e) {
@@ -147,7 +147,7 @@ class ExchangeRatesTest extends TestCase
 
     // ── Quotes ─────────────────────────────────────────────────────────────────────────
 
-    public function test_a_rand_quote_uses_the_ecb_rate_plus_the_15_percent_buffer(): void
+    public function test_a_rand_quote_uses_the_ecb_rate_plus_the_8_percent_buffer(): void
     {
         $this->travelTo('2026-10-14 09:00:00');
         $this->storeRate('18.327801', '2026-10-13');
@@ -156,8 +156,8 @@ class ExchangeRatesTest extends TestCase
 
         $quote = app(PaymentService::class)->quote('starter', $provider, 'ZAR');
 
-        // US$10 × 18.327801 = R183.27801; × 1.15 = R210.769711… → R210.77
-        $this->assertSame(['ZAR', 21077, '18.327801', 'ecb:2026-10-13'], [$quote['charge_currency'], $quote['charge_amount_minor'], $quote['fx_rate'], $quote['fx_source']]);
+        // US$10 × 18.327801 = R183.27801; × 1.08 = R197.940250… → R197.95 (rounded up to the cent)
+        $this->assertSame(['ZAR', 19795, '18.327801', 'ecb:2026-10-13'], [$quote['charge_currency'], $quote['charge_amount_minor'], $quote['fx_rate'], $quote['fx_source']]);
         $this->getJson('/api/billing')->assertJsonPath('data.providers', [['key' => 'fake', 'currencies' => ['ZAR']]]);
 
         // No fresh rate → rand isn't offered at all.

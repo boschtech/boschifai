@@ -27,11 +27,11 @@ return [
     // and its source — is stored with the payment (docs/outstanding-decisions.md D3).
     //   rate:   optional admin override (units per US dollar); normally empty, so the latest ECB
     //           reference rate is used (see fx_feed)
-    //   buffer: added on top of the rate, e.g. 0.15 = 15%
+    //   buffer: added on top of the rate, e.g. 0.08 = 8%
     'fx' => [
         'ZAR' => [
             'rate' => env('PAYMENTS_FX_ZAR_RATE'),
-            'buffer' => env('PAYMENTS_FX_ZAR_BUFFER', '0.15'),
+            'buffer' => env('PAYMENTS_FX_ZAR_BUFFER', '0.08'),
         ],
     ],
 

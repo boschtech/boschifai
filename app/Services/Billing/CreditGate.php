@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\Workspace;
+use App\Models\WorkspaceAiCredential;
 use App\Services\Pipeline\StepDispatcher;
 
 /**
@@ -21,7 +22,8 @@ class CreditGate
     /** @throws InsufficientCredits */
     public function assertCanStart(Workspace $workspace, string $stepKey): void
     {
-        if (! config('billing.enforce') || ! $this->steps->usesClaude($stepKey)) {
+        // A workspace on its own Anthropic key pays Anthropic directly — credits don't apply.
+        if (! config('billing.enforce') || ! $this->steps->usesClaude($stepKey) || WorkspaceAiCredential::activeFor($workspace->id)) {
             return;
         }
 

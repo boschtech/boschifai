@@ -93,6 +93,16 @@ return [
         'max_cost_per_run_usd' => env('BOSCHIFAI_MAX_COST_PER_RUN_USD'),
 
         // Locks down the `claude` process (see App\Services\ClaudeRunner\ClaudeProcessHardening).
+        // Encrypts what workspaces store about their own AI provider (their Anthropic key…) —
+        // deliberately NOT APP_KEY, so rotating one doesn't affect the other. AES-256-GCM.
+        // Generate with `php artisan boschifai:generate-credentials-key`; production: AWS SSM.
+        // To rotate: put the new key here, the old one in previous_keys, then run
+        // `php artisan boschifai:rotate-credentials-key`, then drop the old key.
+        'credentials_encryption' => [
+            'key' => env('BOSCHIFAI_CREDENTIALS_KEY'),
+            'previous_keys' => array_values(array_filter(array_map('trim', explode(',', (string) env('BOSCHIFAI_CREDENTIALS_PREVIOUS_KEYS', ''))))),
+        ],
+
         'hardening' => [
             // The only API endpoint the CLI may use; pinned over anything a repo's
             // .claude/settings.json sets.

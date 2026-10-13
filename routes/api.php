@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\RepoConfigController;
 use App\Http\Controllers\Api\RunApprovalController;
 use App\Http\Controllers\Api\RunController;
 use App\Http\Controllers\Api\UsageController;
+use App\Http\Controllers\Api\WorkspaceAiCredentialController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\WorkspaceInvitationController;
 use App\Http\Controllers\Api\WorkspaceMemberController;
@@ -54,6 +55,11 @@ Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     // and owners only.
     Route::middleware('workspace.manage')->group(function () {
         Route::get('/billing', [BillingController::class, 'show']);
+        Route::get('/workspace/ai-credentials', [WorkspaceAiCredentialController::class, 'show']);
+        // Each of these calls Anthropic to check the key.
+        Route::put('/workspace/ai-credentials', [WorkspaceAiCredentialController::class, 'update'])->middleware('throttle:10,1');
+        Route::post('/workspace/ai-credentials/check', [WorkspaceAiCredentialController::class, 'check'])->middleware('throttle:10,1');
+        Route::delete('/workspace/ai-credentials', [WorkspaceAiCredentialController::class, 'destroy']);
         Route::post('/billing/checkout', [BillingController::class, 'checkout'])->middleware('throttle:20,1');
         Route::get('/billing/payments/{payment}', [BillingController::class, 'payment'])->whereNumber('payment');
         Route::get('/workspace', [WorkspaceController::class, 'show']);

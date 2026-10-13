@@ -2,6 +2,7 @@
 
 namespace App\Services\ClaudeRunner;
 
+use App\Enums\ClaudeCredentialSource;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -24,7 +25,7 @@ class ClaudeTranscriptParser
      *     error_message: ?string,
      * }
      */
-    public function parseSummary(string $transcriptPath): array
+    public function parseSummary(string $transcriptPath, ClaudeCredentialSource $source = ClaudeCredentialSource::Platform): array
     {
         $summary = [
             'total_cost_usd' => null, 'num_turns' => null, 'stop_reason' => null,
@@ -46,7 +47,7 @@ class ClaudeTranscriptParser
             $summary['total_cost_usd'] = isset($decoded['total_cost_usd']) ? (float) $decoded['total_cost_usd'] : null;
             $summary['num_turns'] = isset($decoded['num_turns']) ? (int) $decoded['num_turns'] : null;
             $summary['stop_reason'] = $decoded['stop_reason'] ?? $decoded['subtype'] ?? null;
-            $summary['error_message'] = $this->resultErrorMessage($decoded);
+            $summary['error_message'] = $this->resultErrorMessage($decoded, $source);
 
             // `usage` — confirmed by reading a real transcript's "result" line (see
             // ClaudeInvocation's token columns): input_tokens/output_tokens are the two
@@ -74,7 +75,7 @@ class ClaudeTranscriptParser
      * "api_error_status":400}` — note `subtype` can still say "success" there, so `is_error` and
      * the `error_*` subtypes are checked independently.
      */
-    private function resultErrorMessage(array $result): ?string
+    private function resultErrorMessage(array $result, ClaudeCredentialSource $source): ?string
     {
         $subtype = $result['subtype'] ?? null;
         $isErrorSubtype = is_string($subtype) && str_starts_with($subtype, 'error');
@@ -102,16 +103,26 @@ class ClaudeTranscriptParser
 
         // The raw API text says what happened but not what to do — lead with the action for the
         // errors a reviewer can actually fix, and keep the raw text after it for diagnosis.
-        $action = $this->actionFor($message, $status);
+        $action = $this->actionFor($message, $status, $source);
 
         return $action ? "{$action} ({$raw})" : $raw;
     }
 
-    private function actionFor(string $message, mixed $status): ?string
+    /**
+     * Who has to act depends on whose credentials failed: BoschifAI's own (platform) or the
+     * workspace's own Anthropic account.
+     */
+    private function actionFor(string $message, mixed $status, ClaudeCredentialSource $source): ?string
     {
+        $own = $source === ClaudeCredentialSource::Anthropic;
+
         return match (true) {
-            (bool) preg_match('/credit balance is too low/i', $message) => 'The Anthropic API account used by BoschifAI has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step.',
-            $status === 401 || (bool) preg_match('/invalid (x-)?api[ -]?key|authentication/i', $message) => 'The Anthropic API key configured for BoschifAI was rejected. Ask an admin to check ANTHROPIC_API_KEY, then press Retry step.',
+            (bool) preg_match('/credit balance is too low/i', $message) => $own
+                ? "Your workspace's own Anthropic account has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step."
+                : 'The Anthropic API account used by BoschifAI has run out of credit. Add credit in the Anthropic Console (Plans & Billing), then press Retry step.',
+            $status === 401 || (bool) preg_match('/invalid (x-)?api[ -]?key|authentication/i', $message) => $own
+                ? "Anthropic rejected your workspace's own API key. A workspace owner or admin can replace it under Settings → AI provider, then press Retry step."
+                : 'The Anthropic API key configured for BoschifAI was rejected. Ask an admin to check ANTHROPIC_API_KEY, then press Retry step.',
             $status === 429 || (bool) preg_match('/rate limit/i', $message) => 'The Anthropic API rate limit was hit. Wait a few minutes, then press Retry step.',
             $status === 529 || (bool) preg_match('/overloaded/i', $message) => 'The Anthropic API is temporarily overloaded. Wait a few minutes, then press Retry step.',
             default => null,

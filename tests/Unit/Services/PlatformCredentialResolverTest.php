@@ -7,6 +7,7 @@ use App\Enums\ClaudeCredentialSource;
 use App\Models\Run;
 use App\Services\ClaudeRunner\Credentials\ClaudeCredentialResolver;
 use App\Services\ClaudeRunner\Credentials\PlatformCredentialResolver;
+use App\Services\ClaudeRunner\Credentials\WorkspaceCredentialResolver;
 use Tests\TestCase;
 
 class PlatformCredentialResolverTest extends TestCase
@@ -17,7 +18,8 @@ class PlatformCredentialResolverTest extends TestCase
 
         $credentials = app(ClaudeCredentialResolver::class)->resolveFor(new Run, 'gap_analysis');
 
-        $this->assertInstanceOf(PlatformCredentialResolver::class, app(ClaudeCredentialResolver::class));
+        // The app resolves per workspace; one without its own key gets the platform's.
+        $this->assertInstanceOf(WorkspaceCredentialResolver::class, app(ClaudeCredentialResolver::class));
         $this->assertSame(['ANTHROPIC_API_KEY' => 'sk-ant-platform-key'], $credentials->env);
         $this->assertSame('claude-test-model', $credentials->model);
         $this->assertSame(ClaudeBillingMode::Platform, $credentials->billingMode);

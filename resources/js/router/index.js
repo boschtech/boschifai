@@ -16,6 +16,7 @@ import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue';
 import AccountPage from '../pages/AccountPage.vue';
 import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue';
+import AiProviderSettingsPage from '../pages/AiProviderSettingsPage.vue';
 import BillingPage from '../pages/BillingPage.vue';
 import BillingReturnPage from '../pages/BillingReturnPage.vue';
 import WorkspaceSettingsPage from '../pages/WorkspaceSettingsPage.vue';
@@ -36,6 +37,7 @@ const routes = [
     // everyone — the page adapts to whether, and as whom, the visitor is signed in.
     { path: '/invitations/:token', name: 'invitations.show', component: AcceptInvitationPage, props: true, meta: { public: true } },
     { path: '/settings/workspace', name: 'settings.workspace', component: WorkspaceSettingsPage, meta: { requiresManage: true } },
+    { path: '/settings/ai-provider', name: 'settings.ai-provider', component: AiProviderSettingsPage, meta: { requiresManage: true } },
     { path: '/billing', name: 'billing', component: BillingPage, meta: { requiresManage: true } },
     // The payment provider sends the customer back here (see PaymentService::startCheckout).
     { path: '/billing/payments/:id', name: 'billing.payment', component: BillingReturnPage, props: true, meta: { requiresManage: true } },

@@ -8,9 +8,10 @@ import localRepos from './modules/localRepos';
 import usage from './modules/usage';
 import workspace from './modules/workspace';
 import billing from './modules/billing';
+import aiProvider from './modules/aiProvider';
 
 Vue.use(Vuex);
 
 export default new Vuex.Store({
-    modules: { auth, runs, repoConfigs, github, localRepos, usage, workspace, billing },
+    modules: { auth, runs, repoConfigs, github, localRepos, usage, workspace, billing, aiProvider },
 });

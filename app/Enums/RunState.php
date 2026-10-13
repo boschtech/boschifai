@@ -37,6 +37,11 @@ enum RunState: string
     case StandaloneRunning = 'standalone_running';
     case StandaloneComplete = 'standalone_complete';
 
+    // The workspace couldn't cover the next Claude step's credit hold (billing.enforce). Not a
+    // failure: runs.awaiting_credits_step says which step, and resuming once credits are added
+    // starts it (RunController::resume).
+    case AwaitingCredits = 'awaiting_credits';
+
     case Failed = 'failed';
     case Cancelled = 'cancelled';
 

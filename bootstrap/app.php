@@ -2,9 +2,12 @@
 
 use App\Http\Middleware\RequireWorkspace;
 use App\Http\Middleware\RequireWorkspaceManager;
+use App\Services\Billing\InsufficientCredits;
+use App\Support\Billing\MicroUsd;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,5 +28,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // A step the workspace can't afford (billing.enforce): 402 with the figures, so the app
+        // can say how much is needed rather than show a generic error.
+        $exceptions->render(function (InsufficientCredits $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $e->getMessage().' Ask a workspace owner or admin to add credits.',
+                    'code' => 'insufficient_credits',
+                    'available_usd' => MicroUsd::format($e->availableMicro, 2),
+                    'required_usd' => MicroUsd::format($e->requiredMicro, 2),
+                ], 402);
+            }
+        });
     })->create();

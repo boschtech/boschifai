@@ -4,14 +4,21 @@
 | Prepaid credits. 1 credit = US$1; every amount is stored as integer micro-dollars
 | (1 USD = 1 000 000) so nothing is ever rounded through a float.
 |
-| Shadow mode: every Claude step is priced and recorded (invocation_charges), but no credits are
-| held or charged and nothing is blocked — enforcement comes in a later release.
+| Every Claude step is priced and recorded (invocation_charges). Credits only move when
+| `enforce` is on; until then this is shadow mode — nothing is held, charged or blocked.
 |
 | The figures below are business decisions for finance, not engineering defaults — none are
 | invented here. Until they're set, steps are priced at cost so real numbers can be calibrated
 | from `php artisan boschifai:billing-report`.
 */
 return [
+
+    // Off (the default): shadow mode, as described above. On: before each Claude step the
+    // step's hold is reserved from the workspace's credits; a run that can't cover it waits in
+    // `awaiting_credits` (resumable) instead of running, and requests that would start a step
+    // get HTTP 402. Switch on only once every step's hold is set (see stage_holds_usd) and the
+    // workspaces have credits — a step with no hold still runs, uncharged, and is reported.
+    'enforce' => (bool) env('BILLING_ENFORCE', false),
 
     // Multiplier on the provider's cost, e.g. 1.5 charges US$1.50 for US$1.00 of API usage.
     // Unset = charged at cost (1.0).

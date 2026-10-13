@@ -74,6 +74,61 @@ describe('RunShowPage', () => {
         });
     });
 
+    describe('waiting for credits', () => {
+        const awaiting = () => makeRun({
+            state: 'awaiting_credits',
+            awaiting_credits_step: 'code_generation',
+            error_message: 'Not enough credits: US$1.00 needed, US$0.20 available. Add credits to this workspace, then resume the run.',
+        });
+
+        it('explains the pause and resumes the run', async () => {
+            const { actions } = await mountPage(awaiting());
+
+            const panel = wrapper.find('[data-awaiting-credits]');
+            expect(panel.text()).toContain('Paused before code_generation: this workspace doesn\'t have enough credits for it.');
+            expect(panel.text()).toContain('US$1.00 needed, US$0.20 available');
+
+            await button('Resume').trigger('click');
+            await flushPromises();
+
+            expect(actions.resumeRun).toHaveBeenCalledWith('run-1');
+            expect(actions.fetchRun).toHaveBeenCalledTimes(2);
+        });
+
+        it('can cancel the run instead', async () => {
+            const { actions } = await mountPage(awaiting());
+
+            await button('Cancel run').trigger('click');
+            await flushPromises();
+
+            expect(actions.cancelRun).toHaveBeenCalledWith('run-1');
+        });
+
+        it('says why resuming was refused, and clears it on the next try', async () => {
+            const refusal = Object.assign(new Error('402'), { response: { status: 402, data: { message: 'Not enough credits: US$1.00 needed, US$0.20 available. Ask a workspace owner or admin to add credits.' } } });
+            const resumeRun = vi.fn().mockRejectedValueOnce(refusal).mockResolvedValueOnce(null);
+            await mountPage(awaiting(), { resumeRun });
+
+            await button('Resume').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[role="alert"]').text()).toBe('Not enough credits: US$1.00 needed, US$0.20 available. Ask a workspace owner or admin to add credits.');
+
+            await button('Resume').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+        });
+    });
+
+    it('shows why any action was refused instead of failing silently', async () => {
+        const retryStep = vi.fn(() => Promise.reject(new Error('Network Error')));
+        await mountPage(makeRun({ state: 'failed', failed_step: 'test_plan', failed_step_id: 42, error_message: 'x' }), { retryStep });
+
+        await button('Retry step').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.find('[role="alert"]').text()).toBe('Network Error');
+    });
+
     describe('Gate 1 decisions', () => {
         it('approves and reloads', async () => {
             const { actions } = await mountPage(makeRun());

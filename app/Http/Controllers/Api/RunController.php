@@ -3,24 +3,24 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\RunState;
+use App\Enums\RunStepKey;
 use App\Enums\RunStepStatus;
 use App\Enums\RunType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreRunRequest;
 use App\Http\Resources\RunListResource;
 use App\Http\Resources\RunResource;
-use App\Jobs\PushAndOpenPrJob;
-use App\Jobs\RunCodeGenerationJob;
 use App\Jobs\RunFixFailingTestsJob;
 use App\Jobs\RunGapAnalysisJob;
 use App\Jobs\RunLocalTestExecutionJob;
 use App\Jobs\RunStandaloneActionJob;
-use App\Jobs\RunTestCaseGenerationJob;
-use App\Jobs\RunTestPlanJob;
 use App\Models\RepoConfig;
 use App\Models\Run;
 use App\Models\RunStep;
+use App\Services\Billing\CreditGate;
 use App\Services\ClaudeRunner\ClaudeTranscriptParser;
+use App\Services\Pipeline\CancellationChecker;
+use App\Services\Pipeline\StepDispatcher;
 use App\Services\Sandbox\RunWorkspaceManager;
 use App\Services\TestExecution\LocalTestRunner;
 use App\Support\CurrentWorkspace;
@@ -50,7 +50,7 @@ class RunController extends Controller
         return RunListResource::collection($runs);
     }
 
-    public function store(StoreRunRequest $request)
+    public function store(StoreRunRequest $request, CreditGate $credits)
     {
         $repo = RepoConfig::forWorkspace(app(CurrentWorkspace::class)->id())->findOrFail($request->validated('repo_config_id'));
 
@@ -69,6 +69,12 @@ class RunController extends Controller
             422,
             "'{$repo->display_name}' already has a run in progress — wait for it to finish (or reject/cancel/archive it) before submitting another against the same repository."
         );
+
+        $runType = RunType::from($request->validated('run_type') ?? RunType::Requirement->value);
+        $credits->assertCanStart(app(CurrentWorkspace::class)->get(), match ($runType) {
+            RunType::BuildSkills, RunType::BuildKnowledgeBase => $runType->value,
+            default => RunStepKey::GapAnalysis->value,
+        });
 
         $validated = $request->validated();
         unset($validated['attachments']); // files, not a Run column — handled separately below
@@ -125,24 +131,14 @@ class RunController extends Controller
      * steps — an unattended retry on a paid, non-deterministic call should be a human's choice
      * (plan §3), this endpoint is that choice.
      */
-    public function retryStep(Run $run, RunStep $step)
+    public function retryStep(Run $run, RunStep $step, StepDispatcher $dispatcher, CreditGate $credits)
     {
         abort_if($step->run_id !== $run->id, 404);
         abort_unless($run->state === RunState::Failed, 422, 'Run is not in a failed state.');
+        abort_unless($dispatcher->canDispatch($step->key), 422, "Step '{$step->key}' cannot be retried directly — resubmit as a new run.");
+        $credits->assertCanStart($run->workspace, $step->key);
 
-        $run->update(['state' => $this->runningStateFor($step->key), 'error_message' => null, 'failed_step' => null]);
-
-        match ($step->key) {
-            'gap_analysis' => RunGapAnalysisJob::dispatch($run->id),
-            'test_plan' => RunTestPlanJob::dispatch($run->id),
-            'test_case_generation' => RunTestCaseGenerationJob::dispatch($run->id),
-            'code_generation' => RunCodeGenerationJob::dispatch($run->id),
-            'local_execution' => RunLocalTestExecutionJob::dispatch($run->id),
-            'fix_failing_tests' => RunFixFailingTestsJob::dispatch($run->id),
-            'push' => PushAndOpenPrJob::dispatch($run->id),
-            'build_skills', 'build_knowledge_base' => RunStandaloneActionJob::dispatch($run->id),
-            default => abort(422, "Step '{$step->key}' cannot be retried directly — resubmit as a new run."),
-        };
+        $dispatcher->dispatch($run, $step->key, ['error_message' => null, 'failed_step' => null]);
 
         return new RunResource($run->fresh(['repoConfig', 'steps', 'artifacts', 'executionResult', 'ciCheckResult']));
     }
@@ -175,10 +171,11 @@ class RunController extends Controller
      * scoped to that one file rather than also touching application code. Same gate as
      * rerunLocalExecution: only valid before push, and only when there's something to fix.
      */
-    public function fixFailingTests(Run $run)
+    public function fixFailingTests(Run $run, CreditGate $credits)
     {
         abort_unless($run->state === RunState::LocalExecutionComplete, 422, 'Run is not awaiting Gate 2 with a completed local execution.');
         abort_if(($run->executionResult?->failed ?? 0) === 0, 422, 'No failing tests to fix.');
+        $credits->assertCanStart($run->workspace, RunStepKey::FixFailingTests->value);
 
         $run->update(['state' => RunState::GenerationRunning]);
 
@@ -239,11 +236,35 @@ class RunController extends Controller
      * LocalTestRunner's poll interval — so the frontend keeps polling `activity`/`show` and
      * picks up the `cancelled` state once the job notices.
      */
-    public function cancel(Run $run)
+    public function cancel(Run $run, CancellationChecker $cancellation)
     {
+        // Nothing is running while a run waits for credits, so there's no job to stop
+        // cooperatively — it's cancelled straight away.
+        if ($run->state === RunState::AwaitingCredits) {
+            $cancellation->markCancelled($run, $run->awaiting_credits_step ?? RunStepKey::GapAnalysis->value, 'Cancelled by user while waiting for credits.');
+            $run->update(['awaiting_credits_step' => null]);
+
+            return new RunResource($run->fresh(['repoConfig', 'steps', 'artifacts', 'executionResult', 'ciCheckResult']));
+        }
+
         abort_unless($this->isCancellableState($run->state), 422, 'Run is not in a state that can be stopped.');
 
         $run->update(['cancel_requested_at' => now()]);
+
+        return new RunResource($run->fresh(['repoConfig', 'steps', 'artifacts', 'executionResult', 'ciCheckResult']));
+    }
+
+    /**
+     * Starts the step a run was waiting on once its workspace has credits again (see
+     * StepExecutionService::awaitCredits).
+     */
+    public function resume(Run $run, StepDispatcher $dispatcher, CreditGate $credits)
+    {
+        abort_unless($run->state === RunState::AwaitingCredits && $run->awaiting_credits_step, 422, 'Run is not waiting for credits.');
+        abort_if($run->archived_at !== null, 422, 'Restore this run from the archive before resuming it.');
+        $credits->assertCanStart($run->workspace, $run->awaiting_credits_step);
+
+        $dispatcher->dispatch($run, $run->awaiting_credits_step, ['awaiting_credits_step' => null, 'error_message' => null]);
 
         return new RunResource($run->fresh(['repoConfig', 'steps', 'artifacts', 'executionResult', 'ciCheckResult']));
     }
@@ -450,17 +471,5 @@ class RunController extends Controller
     private function elapsedSeconds(\DateTimeInterface $since): int
     {
         return (int) round(now()->diffInSeconds($since, absolute: true));
-    }
-
-    private function runningStateFor(string $stepKey): RunState
-    {
-        return match ($stepKey) {
-            'gap_analysis', 'test_plan' => RunState::GapAnalysisRunning,
-            'test_case_generation', 'code_generation', 'fix_failing_tests' => RunState::GenerationRunning,
-            'local_execution' => RunState::LocalExecutionRunning,
-            'push' => RunState::Pushing,
-            'build_skills', 'build_knowledge_base' => RunState::StandaloneRunning,
-            default => RunState::Failed,
-        };
     }
 }

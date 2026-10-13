@@ -31,6 +31,18 @@ describe('RunTimeline', () => {
         expect(result.some((s) => s.endsWith(':blocked'))).toBe(false);
     });
 
+    it.each([
+        ['code_generation', 'generation:current'],
+        ['gap_analysis', 'gap_analysis:current'],
+        ['push', 'ci:current'],
+        [null, 'gap_analysis:current'],
+    ])('shows a run waiting for credits before %s at that stage', (awaitingStep, expected) => {
+        const result = statuses({ state: 'awaiting_credits', awaitingStep });
+
+        expect(result).toContain(expected);
+        expect(result.some((s) => s.endsWith(':blocked'))).toBe(false);
+    });
+
     it('uses coverage labels for coverage runs', () => {
         const wrapper = mount(RunTimeline, { propsData: { state: 'draft', runType: 'coverage' } });
 

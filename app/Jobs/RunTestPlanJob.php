@@ -69,6 +69,10 @@ class RunTestPlanJob implements ShouldQueue
             config('boschifai.claude.timeouts.test_plan'),
         );
 
+        if ($outcome->halted) {
+            return; // waiting (e.g. for credits): StepExecutionService already updated the run
+        }
+
         if ($outcome->claudeResult->cancelled) {
             return;
         }

@@ -1,7 +1,7 @@
 <template>
     <div v-if="run">
         <div class="mb-6 flex items-center justify-between gap-4">
-            <run-timeline :state="run.state" :run-type="run.run_type" class="min-w-0 flex-1" />
+            <run-timeline :state="run.state" :run-type="run.run_type" :awaiting-step="run.awaiting_credits_step" class="min-w-0 flex-1" />
             <button
                 type="button"
                 :disabled="archiving"
@@ -13,6 +13,11 @@
         </div>
 
         <p v-if="run.archived_at" class="mb-6 text-sm text-fg-muted">This run is archived.</p>
+
+        <!-- Why the last button press was refused (e.g. not enough credits: 402). -->
+        <p v-if="actionError" class="mb-6 rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger" role="alert">
+            {{ actionError }}
+        </p>
 
         <p v-if="run.previous_run_id" class="mb-6 text-sm text-fg-muted">
             Edited from a previous run —
@@ -85,6 +90,29 @@
                 Test-case generation could not pass its own validator after two attempts. Needs manual
                 intervention — review <code>{{ run.blocked_reason }}</code> and either edit the generated
                 file directly in the worktree or reject this run and resubmit.
+            </div>
+
+            <div v-else-if="run.state === 'awaiting_credits'" class="rounded-md border border-warning/30 bg-warning/10 p-4 text-sm text-fg" data-awaiting-credits>
+                <p class="mb-1">Paused before <strong>{{ run.awaiting_credits_step }}</strong>: this workspace doesn't have enough credits for it.</p>
+                <p class="mb-3 whitespace-pre-line">{{ run.error_message }}</p>
+                <div class="flex gap-3">
+                    <button
+                        type="button"
+                        :disabled="busy"
+                        class="rounded-sm bg-fg-strong px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90 disabled:opacity-50"
+                        @click="resume"
+                    >
+                        Resume
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="busy"
+                        class="rounded-sm border border-border bg-surface px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-alt disabled:opacity-50"
+                        @click="stop"
+                    >
+                        Cancel run
+                    </button>
+                </div>
             </div>
 
             <div v-else-if="run.state === 'failed'" class="rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
@@ -166,6 +194,8 @@ export default {
         return {
             pollTimer: null,
             archiving: false,
+            busy: false,
+            actionError: null,
         };
     },
 
@@ -207,7 +237,20 @@ export default {
     },
 
     methods: {
-        ...mapActions('runs', ['fetchRun', 'decideGapAnalysis', 'decidePush', 'retryStep', 'cancelRun', 'rerunLocalExecution', 'fixFailingTests', 'archiveRun', 'unarchiveRun']),
+        ...mapActions('runs', ['fetchRun', 'decideGapAnalysis', 'decidePush', 'retryStep', 'resumeRun', 'cancelRun', 'rerunLocalExecution', 'fixFailingTests', 'archiveRun', 'unarchiveRun']),
+
+        // Runs a button's request and shows why it was refused, instead of failing silently.
+        async perform(action) {
+            this.busy = true;
+            this.actionError = null;
+            try {
+                await action();
+            } catch (e) {
+                this.actionError = e.response?.data?.message || e.message;
+            } finally {
+                this.busy = false;
+            }
+        },
 
         async load() {
             await this.fetchRun(this.id);
@@ -217,40 +260,57 @@ export default {
             }
         },
 
-        async decide(gate, decision, comment) {
-            if (gate === 'gap-analysis') {
-                const run = await this.decideGapAnalysis({ id: this.id, decision, comment });
-                // Follow the reviewer straight to the rerun (see RunApprovalController::
-                // startRevisedRun) — the `id` watcher reloads and starts polling it.
-                if (decision === 'changes_requested' && run?.revised_run_id) {
-                    this.$router.push({ name: 'runs.show', params: { id: run.revised_run_id } });
+        decide(gate, decision, comment) {
+            return this.perform(async () => {
+                if (gate === 'gap-analysis') {
+                    const run = await this.decideGapAnalysis({ id: this.id, decision, comment });
+                    // Follow the reviewer straight to the rerun (see RunApprovalController::
+                    // startRevisedRun) — the `id` watcher reloads and starts polling it.
+                    if (decision === 'changes_requested' && run?.revised_run_id) {
+                        this.$router.push({ name: 'runs.show', params: { id: run.revised_run_id } });
 
-                    return;
+                        return;
+                    }
+                } else {
+                    await this.decidePush({ id: this.id, decision, comment });
                 }
-            } else {
-                await this.decidePush({ id: this.id, decision, comment });
-            }
-            this.load();
+                this.load();
+            });
         },
 
-        async retry() {
-            await this.retryStep({ id: this.id, stepId: this.run.failed_step_id });
-            this.load();
+        retry() {
+            return this.perform(async () => {
+                await this.retryStep({ id: this.id, stepId: this.run.failed_step_id });
+                this.load();
+            });
         },
 
-        async stop() {
-            await this.cancelRun(this.id);
-            this.load();
+        resume() {
+            return this.perform(async () => {
+                await this.resumeRun(this.id);
+                this.load();
+            });
         },
 
-        async rerunTests() {
-            await this.rerunLocalExecution(this.id);
-            this.load();
+        stop() {
+            return this.perform(async () => {
+                await this.cancelRun(this.id);
+                this.load();
+            });
         },
 
-        async fixTests() {
-            await this.fixFailingTests(this.id);
-            this.load();
+        rerunTests() {
+            return this.perform(async () => {
+                await this.rerunLocalExecution(this.id);
+                this.load();
+            });
+        },
+
+        fixTests() {
+            return this.perform(async () => {
+                await this.fixFailingTests(this.id);
+                this.load();
+            });
         },
 
         async toggleArchive() {

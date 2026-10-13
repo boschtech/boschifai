@@ -27,20 +27,19 @@
                 Sign out, then open the link again and sign in as {{ invitation.email }}.
             </p>
 
-            <!-- Has an account but isn't signed in: sign in first, then come back here. -->
-            <div v-else-if="invitation.has_account">
-                <p class="mb-4 text-sm text-fg-muted">You already have an account. Sign in to accept.</p>
-                <router-link :to="{ name: 'login', query: { redirect: $route.fullPath } }" :class="button" class="inline-block text-center">
-                    Sign in to accept
-                </router-link>
-            </div>
+            <!-- Not signed in: choose a password (and, if new to BoschifAI, a name), then join. -->
+            <form v-else @submit.prevent="accept(details())">
+                <p v-if="invitation.has_account" class="mb-4 text-sm text-fg-muted">
+                    You already have an account. Create a new password to accept — it replaces your current one
+                    and signs you out everywhere else.
+                </p>
 
-            <!-- New to BoschifAI: choose a name and password. -->
-            <form v-else @submit.prevent="accept({ name, password, password_confirmation: passwordConfirmation })">
-                <label for="name" class="block text-sm font-medium text-fg mb-1">Your name</label>
-                <input id="name" v-model="name" type="text" autocomplete="name" required :class="field" />
+                <template v-if="!invitation.has_account">
+                    <label for="name" class="block text-sm font-medium text-fg mb-1">Your name</label>
+                    <input id="name" v-model="name" type="text" autocomplete="name" required :class="field" />
+                </template>
 
-                <label for="password" class="block text-sm font-medium text-fg mb-1">Choose a password</label>
+                <label for="password" class="block text-sm font-medium text-fg mb-1">{{ invitation.has_account ? 'New password' : 'Choose a password' }}</label>
                 <input id="password" v-model="password" type="password" autocomplete="new-password" required :class="field" />
 
                 <label for="password_confirmation" class="block text-sm font-medium text-fg mb-1">Confirm password</label>
@@ -53,8 +52,14 @@
                 </ul>
 
                 <button type="submit" :disabled="submitting" :class="button">
-                    {{ submitting ? 'Creating your account…' : 'Create account and join' }}
+                    <template v-if="submitting">{{ invitation.has_account ? 'Saving your password…' : 'Creating your account…' }}</template>
+                    <template v-else>{{ invitation.has_account ? 'Set password and join' : 'Create account and join' }}</template>
                 </button>
+
+                <p v-if="invitation.has_account" class="mt-4 text-center text-sm text-fg-muted">
+                    Know your current password?
+                    <router-link :to="{ name: 'login', query: { redirect: $route.fullPath } }" class="text-primary underline">Sign in instead</router-link>
+                </p>
             </form>
         </template>
     </auth-card>
@@ -102,6 +107,11 @@ export default {
     },
 
     methods: {
+        details() {
+            const password = { password: this.password, password_confirmation: this.passwordConfirmation };
+            return this.invitation.has_account ? password : { name: this.name, ...password };
+        },
+
         async accept(details = {}) {
             this.submitting = true;
             this.error = null;

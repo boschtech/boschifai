@@ -51,6 +51,18 @@
         <env name="DB_CONNECTION" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Empty = the pricing defaults (config/billing.php), whatever a local .env sets. -->
+        <env name="BILLING_PACKS" value="" force="true"/>
+        <env name="BILLING_MARKUP" value="" force="true"/>
+        <env name="BILLING_MIN_CHARGE_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_GAP_ANALYSIS_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_TEST_PLAN_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_TEST_CASE_GENERATION_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_CODE_GENERATION_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_FIX_FAILING_TESTS_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_PUSH_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_BUILD_SKILLS_USD" value="" force="true"/>
+        <env name="BILLING_HOLD_BUILD_KNOWLEDGE_BASE_USD" value="" force="true"/>
         <!-- Test-only key for stored provider credentials (never used outside the test suite). -->
         <env name="BOSCHIFAI_CREDENTIALS_KEY" value="base64:fRNrjl1BOD+vKaXwFea8wRqA9Ze0WMppWJhhthSkK3U=" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>

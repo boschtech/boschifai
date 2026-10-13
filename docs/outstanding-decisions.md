@@ -13,8 +13,6 @@ Owner = who has to make the call, not who implements it.
 
 | # | Decision | Owner | Blocks | Current state in code |
 |---|---|---|---|---|
-| D4 | **Credit pricing** — markup, minimum charge per step, and each step's hold (`BILLING_MARKUP`, `BILLING_MIN_CHARGE_USD`, `BILLING_HOLD_*_USD`). Calibrate with `php artisan boschifai:billing-report`. | Finance | Switching on `BILLING_ENFORCE` | Unset: steps priced at cost, shadow mode. |
-| D5 | **Credit packs** — sizes and prices. | Product / finance | Checkout | `BILLING_PACKS` (e.g. `starter:10:10,team:50:45`); none set = nothing can be bought. |
 | D6 | **Compliance for prepaid credits** — VAT and tax invoices; SARB exchange-control rules for USD-priced sales; consumer-protection rules on credit expiry and refunds. | Compliance / finance | Charging any customer | Credits never expire. Refund and chargeback webhooks aren't handled yet (planned: a ledger reversal) — today they'd be recorded and ignored. |
 | D7 | **Per-run spend cap** — a dollar figure for `BOSCHIFAI_MAX_COST_PER_RUN_USD`. | Finance / engineering | Per-run cap feature | Config key exists, unused. |
 
@@ -54,3 +52,5 @@ Owner = who has to make the call, not who implements it.
 | D17 | Encryption of stored provider keys | A dedicated key, `BOSCHIFAI_CREDENTIALS_KEY` (AES-256-GCM), with previous-key support and `boschifai:rotate-credentials-key` | 2026-10-13 |
 | — | Vertex authentication | Service-account key uploaded by the customer, stored encrypted (D17), written per step to an owner-only temp file; a token proxy with no stored key was considered and set aside | 2026-10-13 |
 | D18 | Platform fee for runs on a workspace's own key | No fee — own-key runs aren't charged | 2026-10-13 |
+| D5 | Credit packs | Defaults following the common prepaid-credit pattern (1 credit = US$1): **Starter** US$10 → 10 credits · **Team** US$50 → 55 (+10%) · **Business** US$100 → 115 (+15%) · **Scale** US$250 → 300 (+20%). Bonus credits come out of margin — revisit with D4 (markup). `BILLING_PACKS` overrides them | 2026-10-13 |
+| D4 | Credit pricing | Defaults: **markup 2.0×** API cost (50% gross margin on usage — reported AI-product margins are ~50–60%; infrastructure gateways charge ~5% on top-ups, e.g. OpenRouter 5.5%, Cloudflare 5%), **minimum US$0.02** per step (no provider publishes one; Copilot charges US$0.04 per extra request), and **per-step holds** = highest cost seen × 2.0 rounded up (gap $2, plan $3, cases $2, code $9, fix $3, push $1, skills $2, knowledge base $4 — from 1–11 local runs per step; recalibrate with `boschifai:billing-report`). Each overridable in `.env` | 2026-10-13 |

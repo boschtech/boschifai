@@ -534,8 +534,17 @@ How a step is priced (`App\Services\Billing\SettlementPolicy`, figures from `con
 The charge never exceeds the step's **hold** (the credits reserved before it runs); anything above
 it is absorbed by the platform and shows in the report.
 
-Markup, minimum charge and holds are **business decisions for finance** — they are unset by
-default (priced at cost). To calibrate them from real usage:
+Pricing defaults (D4; finance can override each in `.env`, and an empty value keeps the default):
+
+- **Markup 2.0×** the Claude API cost — a 50% gross margin on usage, in line with the ~50–60%
+  reported for AI products. Bonus credits on larger packs lower the effective margin.
+- **Minimum charge US$0.02** per successful step.
+- **Holds** per step: the highest cost seen so far for that step × 2.0, rounded up — gap analysis
+  $2, test plan $3, test case generation $2, code generation $9, fix failing tests $3, push $1,
+  build skills $2, build knowledge base $4. All fit in a Starter pack (US$10); a typical
+  requirement run is charged about US$7–8.
+
+They're based on few runs so far, so recalibrate from real usage:
 
 ```bash
 php artisan boschifai:billing-report --days=30
@@ -566,8 +575,9 @@ The `scheduler` container runs it every hour, together with the exchange-rate re
 
 #### Buying credits
 
-Owners and admins see the balance and buy credit packs (`BILLING_PACKS`) under **Settings →
-Billing**; a run paused for credits links there too. Pack prices are in **US dollars**; the buyer
+Owners and admins see the balance and buy credit packs under **Settings → Billing**. By default
+(D5): **Starter** US$10 → 10 credits, **Team** US$50 → 55 (+10% bonus), **Business** US$100 → 115
+(+15%), **Scale** US$250 → 300 (+20%); `BILLING_PACKS` (`key:credits:price,…`) replaces them; a run paused for credits links there too. Pack prices are in **US dollars**; the buyer
 chooses the currency to pay in from those the provider can charge and sees the exact amount before
 leaving the app, then lands on a page that waits for the provider's confirmation. Providers plug in
 as adapters behind `App\Services\Payments\PaymentProvider`. **Paystack** is implemented (below);

@@ -1,0 +1,216 @@
+# Deploying to a VPS (Hostinger KVM)
+
+Runs the whole stack — `caddy`, `app`, `worker`, `test-runner`, `db` — on one Linux VM with
+Docker Compose: `docker-compose.yml` plus the production overrides in
+`docker-compose.prod.yml`. Nothing here is Hostinger-specific beyond creating the VM; any Ubuntu
+VPS works the same way.
+
+> **Before real customers use it:** the open item **D11** (agent isolation) in
+> [`outstanding-decisions.md`](outstanding-decisions.md) is marked as blocking production
+> multi-tenant use. The agent can read anything the worker can read, including `.env`. This
+> runbook doesn't change that. Treat the result as fine for an internal or pilot install until
+> D11 is decided.
+
+## 1. Before you start
+
+| Item | Notes |
+| --- | --- |
+| VPS | Ubuntu 24.04, **≥ 4 vCPU / 8 GB RAM / 100 GB disk** to start. Each run does a `composer install` plus a full test suite in `test-runner`, and every connected repo keeps a checkout on disk. |
+| Data-centre region | Choose deliberately. Customer source code, user emails and payment records live here. If it's outside South Africa that's a cross-border transfer under POPIA s72. Confirm with compliance (compare D13). |
+| Domain | An A record (and AAAA, if the VPS has IPv6) pointing at the VPS. Caddy needs it resolving **before** first start to get a certificate. |
+| GitHub OAuth App | Callback URL `https://<domain>/github/callback`. Use a separate OAuth App from your dev one. |
+| Paystack | Webhook URL `https://<domain>/webhooks/payments/paystack`. Live keys only once D3–D6 are settled. |
+| Secrets | `ANTHROPIC_API_KEY`, the GitHub OAuth secret and `PAYSTACK_SECRET_KEY` go into `.env` on the server (mode 600). `.env.example` says production should use AWS SSM. A VPS has no SSM, so this is a known gap for the team to accept or close. |
+
+## 2. Prepare the server (once)
+
+As root on a fresh VM:
+
+```bash
+# A deploy user; disable password SSH logins once your key works.
+adduser --disabled-password --gecos "" deploy
+usermod -aG sudo deploy
+rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/; s/^#\?PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+systemctl restart ssh
+
+# Security updates install themselves.
+apt-get update && apt-get install -y unattended-upgrades && dpkg-reconfigure -plow unattended-upgrades
+
+# Firewall: SSH + web only.
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp && ufw enable
+
+# Docker Engine + Compose plugin (Docker's own apt repository).
+curl -fsSL https://get.docker.com | sh
+usermod -aG docker deploy
+docker compose version   # must be v2.24.4 or newer
+```
+
+**Docker bypasses `ufw` for published ports.** That's why `docker-compose.prod.yml` publishes
+only Caddy's 80/443. Never add `ports:` to `app` or `db` on this host.
+
+Check your Hostinger plan's firewall and snapshot settings in hPanel too. A VM-level snapshot
+before each deploy is a cheap rollback point.
+
+## 3. First deploy
+
+As `deploy`:
+
+```bash
+sudo mkdir -p /opt/boschifai && sudo chown deploy:deploy /opt/boschifai
+git clone https://github.com/boschtech/boschifai.git /opt/boschifai   # read-only deploy key or token
+cd /opt/boschifai
+
+# Every `docker compose` call below picks up both files.
+echo 'export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml' >> ~/.bashrc
+export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+
+cp .env.example .env && chmod 600 .env
+mkdir -p var/no-local-repos var/boschifai/repos
+```
+
+Edit `.env`. At a minimum:
+
+```dotenv
+APP_NAME=BoschifAI
+APP_URL=https://<domain>
+BOSCHIFAI_DOMAIN=<domain>            # read by Caddy
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_DATABASE=boschifai
+DB_USERNAME=boschifai
+DB_PASSWORD=<openssl rand -base64 32>
+
+LOG_LEVEL=warning
+SESSION_ENCRYPT=true
+
+ANTHROPIC_API_KEY=...
+BOSCHIFAI_GITHUB_OAUTH_CLIENT_ID=...
+BOSCHIFAI_GITHUB_OAUTH_CLIENT_SECRET=...
+GITHUB_MCP_PAT=                      # leave blank; the MCP push path is forced off in production
+
+# Mail (SES), billing and Paystack: see README "Sending email" and "Credits".
+```
+
+You don't need to set `APP_ENV`, `APP_DEBUG`, `SESSION_SECURE_COOKIE`, `TRUSTED_PROXIES` or the
+two feature flags. `docker-compose.prod.yml` pins them and wins over `.env`.
+
+Build, install dependencies, generate keys, start:
+
+```bash
+docker compose build
+docker compose run --rm --no-deps app composer install --no-dev --optimize-autoloader --no-interaction
+docker compose run --rm --no-deps app sh -c "npm ci && npm run build"
+docker compose run --rm --no-deps app php artisan key:generate --force
+docker compose run --rm --no-deps app php artisan boschifai:generate-credentials-key   # prints a key: set it as BOSCHIFAI_CREDENTIALS_KEY in .env
+docker compose up -d
+```
+
+**Copy the finished `.env` into the team password manager now.** `APP_KEY` and
+`BOSCHIFAI_CREDENTIALS_KEY` decrypt sessions and every workspace's stored AI-provider keys. If
+you lose them, a database backup is useless for those keys.
+
+MySQL generates a random root password on first start and writes it once to the `db` logs. The
+app never needs it. Leave it unrecorded unless ops wants it for break-glass access.
+
+Create the first user and check the deployment:
+
+```bash
+docker compose exec app php artisan boschifai:create-user you@example.com --workspace="Boschifai"
+curl -fsS https://<domain>/up                 # 200 = app + TLS ok
+docker compose ps                             # all services "running"; db "healthy"
+docker compose logs --tail=50 worker          # "Processing jobs from the [default] queue"
+```
+
+Then do one complete pipeline run against a throwaway repo before anyone else signs in.
+
+**Don't run `php artisan config:cache` or `optimize`.** `app` and `worker` share the same source
+directory but have different environments (only `worker` has `ANTHROPIC_API_KEY`). A cached
+config built in one container would be wrong in the other.
+
+## 4. Routine deploy
+
+```bash
+cd /opt/boschifai
+
+# 1. Make sure no step is mid-flight: stopping the worker kills a running step after 2 minutes.
+docker compose exec db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" \
+  -e "SELECT COUNT(*) AS running FROM jobs WHERE reserved_at IS NOT NULL"'
+
+# 2. Back up, then update.
+./docker/production/backup.sh
+git pull --ff-only
+docker compose build
+docker compose run --rm --no-deps app composer install --no-dev --optimize-autoloader --no-interaction
+docker compose run --rm --no-deps app sh -c "npm ci && npm run build"
+
+# 3. Restart. The source is bind-mounted, so a code-only change doesn't recreate the containers
+#    on its own. Migrations run as `app` and `worker` start.
+docker compose up -d --force-recreate app worker test-runner
+docker compose up -d                          # anything else whose config changed (caddy, db)
+curl -fsS https://<domain>/up
+```
+
+**Rollback:** `git checkout <previous-sha>`, repeat step 3, and restore the pre-deploy backup if
+a migration changed data. Better still, roll back to the VM snapshot.
+
+## 5. Backups
+
+`docker/production/backup.sh` writes a consistent MySQL dump plus `storage/app` (it skips the
+temporary decrypted credential files) to `/var/backups/boschifai` and keeps 14 days. Schedule it
+nightly in the `deploy` user's crontab (`crontab -e`):
+
+```cron
+15 2 * * * /opt/boschifai/docker/production/backup.sh >> /var/log/boschifai-backup.log 2>&1
+```
+
+(`sudo touch /var/log/boschifai-backup.log && sudo chown deploy /var/log/boschifai-backup.log`
+once, and `sudo mkdir -p /var/backups/boschifai && sudo chown deploy /var/backups/boschifai`.)
+
+**This copy stays on the same machine, which doesn't count as a backup.** Ship it off the box
+nightly to object storage in a region compliance has approved, for example S3 in `af-south-1`
+with `aws s3 sync`. Test a restore at least once:
+
+```bash
+gunzip -c db-<stamp>.sql.gz | docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+```
+
+Repo checkouts under `var/` aren't backed up. They're re-cloned from GitHub.
+
+## 6. Scheduled commands
+
+The app has no scheduler yet (**D15**). Until that's decided, a host cron covers stale credit
+holds. The command's default threshold is the longest step timeout plus 30 minutes, so hourly is
+enough:
+
+```cron
+5 * * * * cd /opt/boschifai && COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml docker compose exec -T worker php artisan boschifai:release-stale-holds >> /var/log/boschifai-cron.log 2>&1
+```
+
+## 7. Operating it
+
+| Task | Command |
+| --- | --- |
+| Logs | `docker compose logs -f worker` (also `app`, `test-runner`, `caddy`). Capped at 5 × 20 MB per container. |
+| Laravel log | `tail -f storage/logs/laravel.log` |
+| Shell | `docker compose exec worker bash` |
+| Restart a stuck worker | `docker compose restart worker`. Any step it was running fails and needs re-running. |
+| Disk | `df -h /` and `du -sh var/boschifai/repos`. Checkouts grow with every connected repo. |
+| Rotate the credentials key | `php artisan boschifai:rotate-credentials-key` (see README) |
+
+Add uptime monitoring on `https://<domain>/up` and alert on failures. The org standard for
+errors is Sentry, which isn't wired into this app yet.
+
+## Known limitations
+
+- **PHP's built-in web server** (`php -S`, run with `PHP_CLI_SERVER_WORKERS=4`) serves `app`. It
+  copes with a small team behind Caddy, but it isn't a hardened production server. The image is
+  already `php-fpm` based, so nginx + php-fpm is the natural next step if load or security review
+  calls for it.
+- **One worker.** Steps run one at a time across all workspaces. `container_name` in the base
+  file also stops `docker compose up --scale worker=N`. Adding workers widens D11's cross-workspace
+  exposure, so treat it as part of that decision.
+- **Single machine.** No failover. Recovery means rebuilding the VM and restoring a backup. If
+  the business needs more than that, the team could evaluate managed hosting (e.g. AWS ECS + EFS
+  for the shared checkout volume, RDS for MySQL).

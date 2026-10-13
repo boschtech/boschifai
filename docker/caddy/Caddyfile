@@ -1,0 +1,23 @@
+# TLS front door for docker-compose.prod.yml. Caddy obtains and renews the Let's Encrypt
+# certificate itself — the domain's A/AAAA records must point at this host and ports 80/443 must
+# be open before first start. Caddy sets X-Forwarded-For/-Proto/-Host on proxied requests, which
+# the app trusts via TRUSTED_PROXIES (config/trustedproxy.php).
+
+{$BOSCHIFAI_DOMAIN} {
+	encode zstd gzip
+
+	# Matches PHP's post_max_size (docker/app/Dockerfile) plus headroom for multipart overhead.
+	request_body {
+		max_size 60MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy app:8000
+}

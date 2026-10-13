@@ -40,7 +40,7 @@ class PaymentService
      *
      * @throws PaymentUnavailable
      */
-    public function quote(string $packKey, PaymentProvider $provider): array
+    public function quote(string $packKey, PaymentProvider $provider, string $currency): array
     {
         $pack = config("billing.packs.{$packKey}");
         if (! is_array($pack)) {
@@ -49,7 +49,10 @@ class PaymentService
 
         $credits = MicroUsd::parse($pack['credits_usd']);
         $price = MicroUsd::parse($pack['price_usd']);
-        $currency = strtoupper($provider->chargeCurrency());
+        $currency = strtoupper($currency);
+        if (! in_array($currency, $this->currenciesFor($provider), true)) {
+            throw new PaymentUnavailable("Payments in {$currency} aren't available with this payment method.");
+        }
 
         if ($currency === 'USD') {
             return [
@@ -61,9 +64,6 @@ class PaymentService
 
         $fx = config("payments.fx.{$currency}");
         $rate = MicroUsd::parseOptional($fx['rate'] ?? null);
-        if ($rate === null || $rate <= 0) {
-            throw new PaymentUnavailable("Payments in {$currency} aren't available yet.");
-        }
         $buffer = MicroUsd::parseOptional($fx['buffer'] ?? null) ?? 0;
         $local = MicroUsd::multiply(MicroUsd::multiply($price, $rate), MicroUsd::PER_USD + $buffer);
 
@@ -75,11 +75,25 @@ class PaymentService
     }
 
     /**
+     * The currencies a buyer can actually pay in with $provider: those it can charge, and that
+     * BoschifAI can quote — USD always; anything else only with an exchange rate configured.
+     *
+     * @return list<string>
+     */
+    public function currenciesFor(PaymentProvider $provider): array
+    {
+        return array_values(array_filter(
+            array_map('strtoupper', $provider->chargeCurrencies()),
+            fn (string $currency) => $currency === 'USD' || (MicroUsd::parseOptional(config("payments.fx.{$currency}.rate")) ?? 0) > 0,
+        ));
+    }
+
+    /**
      * @return array{0: Payment, 1: CheckoutSession}
      *
      * @throws PaymentUnavailable
      */
-    public function startCheckout(Workspace $workspace, User $buyer, string $packKey, string $providerKey): array
+    public function startCheckout(Workspace $workspace, User $buyer, string $packKey, string $providerKey, string $currency): array
     {
         if (! $this->providers->isEnabled($providerKey)) {
             throw new PaymentUnavailable('That payment method is not available.');
@@ -92,10 +106,17 @@ class PaymentService
             'pack' => $packKey,
             'status' => PaymentStatus::Pending,
             'created_by_user_id' => $buyer->id,
-            ...$this->quote($packKey, $provider),
+            ...$this->quote($packKey, $provider, $currency),
         ]);
 
-        $session = $provider->createCheckout($payment, url("/billing/payments/{$payment->id}"), url('/billing?cancelled=1'));
+        try {
+            $session = $provider->createCheckout($payment, url("/billing/payments/{$payment->id}"), url('/billing?cancelled=1'), $buyer->email);
+        } catch (\Throwable $e) {
+            report($e);
+            $payment->update(['status' => PaymentStatus::Failed, 'failure_reason' => 'The payment provider could not start the checkout.']);
+
+            throw new PaymentUnavailable("Couldn't start the checkout with the payment provider. Nothing was charged — try again in a moment.");
+        }
         $payment->update(['provider_ref' => $session->providerRef]);
 
         return [$payment, $session];

@@ -48,8 +48,8 @@ describe('billing store', () => {
         const posted = vi.fn(() => ({ data: { id: 7, redirect_url: 'https://pay.example.test/7' } }));
         mockApi({ 'POST /api/billing/checkout': posted, 'GET /api/billing/payments/7': { data: { id: 7, status: 'pending' } } });
 
-        expect(await billing.actions.checkout(context(), { pack: 'starter', provider: 'stripe' })).toEqual({ id: 7, redirect_url: 'https://pay.example.test/7' });
-        expect(posted).toHaveBeenCalledWith({ pack: 'starter', provider: 'stripe' });
+        expect(await billing.actions.checkout(context(), { pack: 'starter', provider: 'stripe', currency: 'USD' })).toEqual({ id: 7, redirect_url: 'https://pay.example.test/7' });
+        expect(posted).toHaveBeenCalledWith({ pack: 'starter', provider: 'stripe', currency: 'USD' });
         expect(await billing.actions.fetchPayment(context(), 7)).toEqual({ id: 7, status: 'pending' });
     });
 

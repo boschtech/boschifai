@@ -12,6 +12,16 @@ return [
     // implemented (registered in PaymentProviderRegistry) to be offered.
     'enabled' => array_values(array_filter(array_map('trim', explode(',', (string) env('PAYMENTS_ENABLED', ''))))),
 
+    'providers' => [
+        // https://paystack.com — a South African business can charge and settle in ZAR only.
+        // Webhook URL to set in the Paystack dashboard: {APP_URL}/webhooks/payments/paystack
+        'paystack' => [
+            'secret_key' => env('PAYSTACK_SECRET_KEY'),
+            'currencies' => array_values(array_filter(array_map(fn ($c) => strtoupper(trim($c)), explode(',', (string) env('PAYSTACK_CURRENCIES', 'ZAR'))))),
+            'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+        ],
+    ],
+
     // Exchange rates for providers that charge in a currency other than USD (credits are always
     // USD). The customer is quoted price × rate × (1 + buffer), rounded up to the cent, and that
     // quote is stored with the payment. Rate source, refresh and buffer are a finance decision

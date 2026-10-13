@@ -563,18 +563,17 @@ There's no scheduler yet, so run it from cron (e.g. hourly) once enforcement is 
 #### Buying credits
 
 Owners and admins see the balance and buy credit packs (`BILLING_PACKS`) under **Settings →
-Billing**; a run paused for credits links there too. When the provider charges in another
-currency (e.g. ZAR), the exact amount is shown before leaving the app, and after paying the
-customer lands on a page that waits for the provider's confirmation. Packs are bought through a
-payment provider. Stripe, Paystack
-and PayFast plug in as adapters behind `App\Services\Payments\PaymentProvider`; none is
-implemented yet — which goes first is an open decision (see
-[docs/outstanding-decisions.md](docs/outstanding-decisions.md)). The provider-independent part is
-in place:
+Billing**; a run paused for credits links there too. Pack prices are in **US dollars**; the buyer
+chooses the currency to pay in from those the provider can charge and sees the exact amount before
+leaving the app, then lands on a page that waits for the provider's confirmation. Providers plug in
+as adapters behind `App\Services\Payments\PaymentProvider`. **Paystack** is implemented (below);
+PayFast may follow (see [docs/outstanding-decisions.md](docs/outstanding-decisions.md)).
 
-- `POST /api/billing/checkout` quotes the pack in the provider's currency (USD, or ZAR at
-  `PAYMENTS_FX_ZAR_RATE` plus `PAYMENTS_FX_ZAR_BUFFER`, rounded up to the cent), records a pending
-  payment and returns the provider's checkout URL.
+- `POST /api/billing/checkout` (pack, provider, currency) quotes the pack in the chosen currency
+  (USD as priced, or e.g. ZAR at `PAYMENTS_FX_ZAR_RATE` plus `PAYMENTS_FX_ZAR_BUFFER`, rounded up
+  to the cent — a currency without a rate isn't offered), records a pending payment and returns the
+  provider's checkout URL. If the provider can't start the checkout, the payment is marked failed
+  and nothing is charged.
 - **Credits are granted only by the provider's webhook** (`POST /webhooks/payments/{provider}` —
   outside the web and api groups: no session, CSRF or sign-in). It must carry a valid signature
   (otherwise 400 and an error report); each event is processed once; the payment is then
@@ -583,13 +582,40 @@ in place:
   granted once per payment, written to the ledger and the audit log.
 - Webhook payloads are stored redacted (no card or buyer details). If confirming with the
   provider fails, the event isn't marked as seen, so the provider's retry processes it.
-- `GET /api/billing` returns the balance, packs, providers and recent payments;
-  `GET /api/billing/payments/{id}` is what the return page polls.
+- `GET /api/billing` returns the balance, packs, providers with the currencies each can be paid
+  in, and recent payments; `GET /api/billing/payments/{id}` is what the return page polls.
+
+#### Paystack
+
+Paystack charges and settles in **ZAR only** for a South African business (USD charging is only
+offered to businesses in Kenya and Nigeria), so ZAR purchases need an exchange rate (D3).
+
+1. In the Paystack dashboard (Settings → API Keys & Webhooks) set the **webhook URL** to
+   `{APP_URL}/webhooks/payments/paystack`.
+2. Configure the app (secret key from AWS SSM in production — never commit it):
+
+   ```dotenv
+   PAYSTACK_SECRET_KEY=sk_test_…        # sk_live_… in production
+   PAYSTACK_CURRENCIES=ZAR              # what Paystack lets this account charge
+   PAYMENTS_ENABLED=paystack
+   PAYMENTS_FX_ZAR_RATE=…               # rand per US dollar (finance — D3)
+   PAYMENTS_FX_ZAR_BUFFER=…             # e.g. 0.03 for 3%
+   BILLING_PACKS=starter:10:10,team:50:45
+   ```
+
+Checkout starts a Paystack transaction for the quoted amount (in cents) with the buyer's email —
+Paystack requires one for the receipt, so the buyer's email address is shared with Paystack
+(POPIA: Paystack processes it as the payment provider). Paystack's webhook is verified with its
+`x-paystack-signature` (HMAC-SHA512 of the raw body, keyed with the secret key), and every payment
+is confirmed with `GET /transaction/verify/{reference}` before credits are granted. Only the
+reference, status, amount, currency and channel are kept from each webhook — no customer or card
+details. Use test keys and Paystack's test cards until going live.
 
 ## API reference
 
-All endpoints are under `/api` (`routes/api.php`). None are authenticated (see
-[What's not wired up yet](#whats-not-wired-up-yet)).
+All endpoints are under `/api` (`routes/api.php`) and need a signed-in member of the current
+workspace (see [Signing in and workspaces](#signing-in-and-workspaces)), except the invitation
+links. Payment webhooks live outside `/api` (`routes/webhooks.php`).
 
 | Method | Path | Purpose |
 | --- | --- | --- |

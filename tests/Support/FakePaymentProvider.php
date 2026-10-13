@@ -23,7 +23,8 @@ class FakePaymentProvider implements PaymentProvider
 
     public int $confirmations = 0;
 
-    public function __construct(private string $currency = 'USD')
+    /** @param  list<string>  $currencies */
+    public function __construct(private array $currencies = ['USD'])
     {
         $this->confirmWith = fn (Payment $p) => new ConfirmedPayment(true, $p->charge_amount_minor, $p->charge_currency);
     }
@@ -33,13 +34,19 @@ class FakePaymentProvider implements PaymentProvider
         return 'fake';
     }
 
-    public function chargeCurrency(): string
+    public bool $checkoutFails = false;
+
+    public function chargeCurrencies(): array
     {
-        return $this->currency;
+        return $this->currencies;
     }
 
-    public function createCheckout(Payment $payment, string $returnUrl, string $cancelUrl): CheckoutSession
+    public function createCheckout(Payment $payment, string $returnUrl, string $cancelUrl, string $buyerEmail): CheckoutSession
     {
+        if ($this->checkoutFails) {
+            throw new \RuntimeException('Provider API is down');
+        }
+
         return new CheckoutSession("https://pay.example.test/checkout/{$payment->id}?return=".urlencode($returnUrl), "fake_ref_{$payment->id}");
     }
 

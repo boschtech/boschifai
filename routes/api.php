@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\GithubConnectionController;
 use App\Http\Controllers\Api\InvitationAcceptController;
 use App\Http\Controllers\Api\LocalRepoController;
@@ -52,6 +53,9 @@ Route::middleware(['auth:sanctum', 'workspace'])->group(function () {
     // Managing the workspace — its name, members, repositories and GitHub connections: admins
     // and owners only.
     Route::middleware('workspace.manage')->group(function () {
+        Route::get('/billing', [BillingController::class, 'show']);
+        Route::post('/billing/checkout', [BillingController::class, 'checkout'])->middleware('throttle:20,1');
+        Route::get('/billing/payments/{payment}', [BillingController::class, 'payment'])->whereNumber('payment');
         Route::get('/workspace', [WorkspaceController::class, 'show']);
         Route::patch('/workspace', [WorkspaceController::class, 'update']);
         Route::patch('/workspace/members/{member}', [WorkspaceMemberController::class, 'update'])->whereNumber('member');

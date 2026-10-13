@@ -5,6 +5,7 @@ namespace App\Services\Billing;
 use App\Enums\CreditEntryType;
 use App\Models\ClaudeInvocation;
 use App\Models\CreditLedgerEntry;
+use App\Models\Payment;
 use App\Models\Run;
 use App\Models\User;
 use App\Models\Workspace;
@@ -46,6 +47,19 @@ class CreditLedger
         return $this->apply($workspace->id, CreditEntryType::Adjustment, $micro, 0, $idempotencyKey, [
             'actor_user_id' => $actor?->id,
             'reason' => trim($reason),
+        ]);
+    }
+
+    /** Grants a confirmed payment's credits. Repeating it for the same payment grants nothing more. */
+    public function purchase(Payment $payment): CreditLedgerEntry
+    {
+        if ($payment->credits_micro <= 0) {
+            throw new InvalidArgumentException('A purchase must add credits.');
+        }
+
+        return $this->apply($payment->workspace_id, CreditEntryType::Purchase, $payment->credits_micro, 0, "purchase:{$payment->id}", [
+            'actor_user_id' => $payment->created_by_user_id,
+            'meta' => ['payment_id' => $payment->id, 'provider' => $payment->provider],
         ]);
     }
 

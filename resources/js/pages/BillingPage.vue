@@ -35,7 +35,7 @@
                 </p>
 
                 <template v-else-if="!quote">
-                    <div class="mb-3 grid gap-3 sm:grid-cols-3">
+                    <div class="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <button
                             v-for="pack in packs"
                             :key="pack.key"
@@ -48,6 +48,9 @@
                         >
                             <span class="block text-lg font-semibold text-fg-strong">{{ pack.credits_usd }} credits</span>
                             <span class="block text-sm text-fg-muted">{{ money(pack.price_usd) }}</span>
+                            <span v-if="pack.bonus_usd" class="mt-1 block text-xs font-medium text-success" data-bonus>
+                                Includes {{ pack.bonus_usd }} bonus credits
+                            </span>
                         </button>
                     </div>
 

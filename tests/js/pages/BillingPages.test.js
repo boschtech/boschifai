@@ -7,7 +7,7 @@ import billing from '@/store/modules/billing';
 import { apiError, flushPromises, makeLocalVueWithRouter, makeRealStore, mockApi } from '../helpers';
 
 const STARTER = { key: 'starter', credits_usd: '10.00', price_usd: '10.00' };
-const TEAM = { key: 'team', credits_usd: '50.00', price_usd: '45.50' };
+const TEAM = { key: 'team', credits_usd: '55.00', price_usd: '50.00', bonus_usd: '5.00' };
 
 function billingData(overrides = {}) {
     return {
@@ -49,6 +49,13 @@ describe('BillingPage', () => {
 
         expect(wrapper.find('[data-balance]').text()).toContain('US$12.50');
         expect(wrapper.find('[data-balance]').text()).toContain('Plus US$3.00 reserved for steps that are running now');
+    });
+
+    it('shows the bonus credits on packs that include some', async () => {
+        await mountBilling();
+
+        expect(wrapper.find('[data-pack="starter"] [data-bonus]').exists()).toBe(false);
+        expect(wrapper.find('[data-pack="team"] [data-bonus]').text()).toBe('Includes 5.00 bonus credits');
     });
 
     it('does not mention reserved credits when nothing is held', async () => {

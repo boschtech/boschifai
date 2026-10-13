@@ -25,11 +25,18 @@ class BillingController extends Controller
             'held_usd' => MicroUsd::format($balance->held_micro, 2),
             // Runs on the workspace's own Anthropic key don't use credits.
             'uses_own_ai_key' => WorkspaceAiCredential::activeFor($current->id()) !== null,
-            'packs' => collect(config('billing.packs'))->map(fn ($pack, $key) => [
-                'key' => $key,
-                'credits_usd' => MicroUsd::format(MicroUsd::parse($pack['credits_usd']), 2),
-                'price_usd' => MicroUsd::format(MicroUsd::parse($pack['price_usd']), 2),
-            ])->values(),
+            'packs' => collect(config('billing.packs'))->map(function ($pack, $key) {
+                $credits = MicroUsd::parse($pack['credits_usd']);
+                $price = MicroUsd::parse($pack['price_usd']);
+
+                return [
+                    'key' => $key,
+                    'credits_usd' => MicroUsd::format($credits, 2),
+                    'price_usd' => MicroUsd::format($price, 2),
+                    // Credits beyond the price paid, e.g. "5.00" on a US$50 pack of 55 credits.
+                    'bonus_usd' => $credits > $price ? MicroUsd::format($credits - $price, 2) : null,
+                ];
+            })->values(),
             // Only providers a buyer can actually pay with — at least one usable currency.
             'providers' => collect($providers->enabled())
                 ->map(fn ($p) => ['key' => $p->key(), 'currencies' => $payments->currenciesFor($p)])

@@ -95,7 +95,7 @@ class BillingCommandsTest extends TestCase
 
     public function test_the_report_says_when_there_is_nothing_to_show(): void
     {
-        config(['billing.markup' => null]);
+        config(['billing.markup' => null, 'billing.min_charge_usd' => null]);
 
         $this->artisan('boschifai:billing-report')
             ->expectsOutput('Last 30 days · markup not set (priced at cost) · minimum charge US$0.00')
@@ -105,7 +105,7 @@ class BillingCommandsTest extends TestCase
 
     public function test_the_report_shows_cost_spread_charges_and_what_holds_absorbed(): void
     {
-        config(['billing.markup' => '2', 'billing.min_charge_usd' => '0.01', 'billing.stage_holds_usd.code_generation' => '1.50']);
+        config(['billing.markup' => '2', 'billing.min_charge_usd' => '0.01', 'billing.stage_holds_usd.code_generation' => '1.50', 'billing.stage_holds_usd.gap_analysis' => null]);
         $this->charge('code_generation', ChargeOutcome::Charged, 500_000, 1_000_000);
         $this->charge('code_generation', ChargeOutcome::Charged, 1_000_000, 1_500_000); // capped: 0.50 absorbed
         $this->charge('code_generation', ChargeOutcome::Released, 200_000, 0);

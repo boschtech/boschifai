@@ -340,8 +340,8 @@ class PaymentsTest extends TestCase
             ->assertJsonPath('data.available_usd', '10.00')
             ->assertJsonPath('data.held_usd', '0.00')
             ->assertJsonPath('data.packs', [
-                ['key' => 'starter', 'credits_usd' => '10.00', 'price_usd' => '10.00'],
-                ['key' => 'team', 'credits_usd' => '50.00', 'price_usd' => '45.50'],
+                ['key' => 'starter', 'credits_usd' => '10.00', 'price_usd' => '10.00', 'bonus_usd' => null],
+                ['key' => 'team', 'credits_usd' => '50.00', 'price_usd' => '45.50', 'bonus_usd' => '4.50'],
             ])
             ->assertJsonPath('data.providers', [['key' => 'fake', 'currencies' => ['USD']]])
             ->assertJsonPath('data.payments.0.status', 'succeeded');

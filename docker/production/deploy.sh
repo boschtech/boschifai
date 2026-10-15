@@ -20,7 +20,10 @@ cd "$(dirname "$0")/../.."
 
 # How long to wait for running pipeline steps (stopping the worker kills one after 2 minutes).
 DEPLOY_WAIT_MINUTES="${DEPLOY_WAIT_MINUTES:-30}"
-LOCK_FILE="${LOCK_FILE:-/tmp/boschifai-deploy.lock}"
+# Inside the checkout (var/ is git-ignored), not /tmp: in /tmp a file left by another user —
+# e.g. root running this by hand — can't be opened by `deploy`, and anyone could plant one to
+# block deploys.
+LOCK_FILE="${LOCK_FILE:-var/deploy.lock}"
 
 log() { printf '[deploy %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 
@@ -81,7 +84,11 @@ main() {
     fi
 
     # One deploy at a time; a second one waits for the first.
-    exec 9>"$LOCK_FILE"
+    mkdir -p "$(dirname "$LOCK_FILE")"
+    if ! exec 9>>"$LOCK_FILE"; then
+        log "Can't open the lock file $LOCK_FILE as $(id -un); fix its owner (chown deploy:deploy)."
+        exit 1
+    fi
     flock 9
 
     git fetch --quiet origin main

@@ -20,6 +20,9 @@ DB_CONTAINER=boschifai-db
 # VPS deploy ("Couldn't execute 'FLUSH TABLES': Access denied").
 DUMP_IMAGE=mysql:8.0.40
 
+# Name the line that failed: a cron run that stops without saying why looks like a success.
+trap 'echo "backup.sh: failed at line $LINENO (exit $?)" >&2' ERR
+
 umask 077
 mkdir -p "$BACKUP_DIR"
 # A failed dump leaves no half-written file behind.
@@ -28,9 +31,10 @@ trap 'rm -f "$BACKUP_DIR/db-$STAMP.sql.gz.partial"' EXIT
 DB_NETWORK="$(docker inspect "$DB_CONTAINER" -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')"
 # Credentials come from the db container's own environment and reach the dump container as
 # MYSQL_PWD by name only (`-e MYSQL_PWD`), so they never appear in a process list. Password last:
-# `read` gives it the rest of the line.
+# `read` gives it the rest of the line. The trailing newline matters: without it `read` still fills
+# the variables but returns 1, and `set -e` ended the script there without a word.
 read -r DB_USER DB_NAME MYSQL_PWD < <(docker exec "$DB_CONTAINER" \
-    sh -c 'printf "%s %s %s" "$MYSQL_USER" "$MYSQL_DATABASE" "$MYSQL_PASSWORD"')
+    sh -c 'printf "%s %s %s\n" "$MYSQL_USER" "$MYSQL_DATABASE" "$MYSQL_PASSWORD"')
 export MYSQL_PWD
 
 # --single-transaction: consistent InnoDB snapshot without locking the app out.

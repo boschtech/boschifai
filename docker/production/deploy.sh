@@ -109,7 +109,10 @@ main() {
 
     wait_for_running_steps
     log "Backing up"
-    ./docker/production/backup.sh
+    if ! ./docker/production/backup.sh; then
+        log "Backup failed; not deploying. Nothing was changed."
+        exit 1
+    fi
 
     log "Deploying $previous -> $target"
     if git merge --quiet --ff-only "$target" && build_and_restart && healthy; then

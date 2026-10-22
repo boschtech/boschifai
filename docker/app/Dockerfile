@@ -30,7 +30,7 @@ FROM ghcr.io/github/github-mcp-server:latest AS github-mcp-server
 #################################################
 # Main app image
 #################################################
-FROM php:8.3-fpm-bookworm
+FROM php:8.5.12-fpm-bookworm
 
 # gd/exif aren't needed by Boschifai's own app — they're here because the `test-runner` service
 # (same image, different command — see docker-compose.yml) runs a connected repo's own
@@ -46,7 +46,9 @@ RUN apt-get update \
         libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev \
         $PHPIZE_DEPS \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install pdo_mysql zip bcmath pcntl opcache gd exif \
+    # No `opcache` here: it's compiled into PHP itself since 8.5, and `docker-php-ext-install
+    # opcache` fails the build if asked for it.
+    && docker-php-ext-install pdo_mysql zip bcmath pcntl gd exif \
     # PCOV, not Xdebug: `test-runner` only needs a coverage DRIVER for `php artisan test
     # --coverage-html` (LocalTestRunner's requirement-mode PHP/Laravel command), never step
     # debugging — PCOV is purpose-built for that (much lower overhead, no debug-protocol

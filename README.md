@@ -30,7 +30,7 @@ per repo may be in flight at a time (`RunController::store()` rejects a second o
 | AI engine | Claude Code CLI run headless (`claude -p`), model `BOSCHIFAI_CLAUDE_MODEL` (default `claude-sonnet-5`) |
 | Scaffolding CLI | `boschifai`: Rust workspace (`boschifai-cli`, `boschifai-core`, `boschifai-ai`) vendored at `docker/boschifai-cli/`. `boschifai init` installs 15 `.claude/commands`, 29 `.claude/skills` and 16 Copilot `.github/prompts` templates |
 | GitHub | OAuth App (`repo` scope), REST API for PRs and check runs, optional `github-mcp-server` push path |
-| Test execution | Isolated `test-runner` sidecar (PHP 8.5 + Composer + Node 20 + pcov), JUnit XML parsing |
+| Test execution | Isolated `test-runner` sidecar (PHP 8.5 + Composer + Node 26 + pcov), JUnit XML parsing |
 | Runtime | Docker Compose: `app`, `worker`, `test-runner`, `db` |
 | Tests | PHPUnit 11, Mockery, in-memory SQLite (`tests/Unit`, `tests/Feature`) |
 

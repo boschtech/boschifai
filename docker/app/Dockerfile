@@ -66,10 +66,10 @@ RUN apt-get update \
 # /boschifai-gen-component detects"). Confirmed as a real gap live: a JS/TS-stack coverage-mode
 # run got all the way through code generation correctly, then local_execution failed outright
 # with "npm: not found" — this image had PHP tooling but no Node.js at all. NodeSource's own
-# setup script (not Debian bookworm's default apt package) for a current LTS release, matching
+# setup script (not Debian bookworm's default apt package) for the latest release line, matching
 # how the Claude Code CLI below is also installed via its own official script rather than an
 # apt package.
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -fsSL https://deb.nodesource.com/setup_26.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

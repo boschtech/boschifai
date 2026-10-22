@@ -364,7 +364,7 @@ pre-push   = (T×25 + Q×20 + L×25) / 70      ← shown at Gate 2, before CI ex
           <tr><td>AI engine</td><td>Claude Code CLI, headless (<span class="mono">claude -p</span>)</td><td>Every analysis and generation step. The default model is <span class="mono">claude-sonnet-5</span></td></tr>
           <tr><td>Scaffolding CLI</td><td><span class="mono">boschifai</span>, a Rust workspace (clap)</td><td><span class="mono">boschifai init</span> installs 15 commands, 29 skills and 16 Copilot prompts into each checkout</td></tr>
           <tr><td>GitHub</td><td>OAuth App (<span class="mono">repo</span> scope) · REST · github-mcp-server</td><td>Connecting repos, pushing branches, opening PRs and polling checks</td></tr>
-          <tr><td>Test execution</td><td>Composer · Node 20 · pcov · JUnit XML</td><td>Running target repos' own suites and collecting coverage</td></tr>
+          <tr><td>Test execution</td><td>Composer · Node 26 · pcov · JUnit XML</td><td>Running target repos' own suites and collecting coverage</td></tr>
           <tr><td>Runtime</td><td>Docker Compose, with a multi-stage Dockerfile</td><td>A Rust builder stage, the MCP server binary and the PHP 8.5 app image</td></tr>
           <tr><td>Quality</td><td>PHPUnit 11 · Mockery · Laravel Pint</td><td>Unit and feature tests on in-memory SQLite</td></tr>
         </tbody>

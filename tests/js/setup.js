@@ -16,6 +16,17 @@ if (!globalThis.CSS?.escape) {
     };
 }
 
+// Node 26 has its own global localStorage, which hides jsdom's and is undefined unless Node is
+// started with --localstorage-file — so every test failed on `localStorage.clear()` below. Put
+// jsdom's back; on Node versions without the built-in, jsdom's is already there.
+if (!globalThis.localStorage) {
+    Object.defineProperty(globalThis, 'localStorage', {
+        value: jsdom.window.localStorage,
+        configurable: true,
+        writable: true,
+    });
+}
+
 // The app sets window.axios in bootstrap.js; tests get a fresh fake per test so no request
 // ever leaves the process and each test states exactly what the API returns.
 beforeEach(() => {

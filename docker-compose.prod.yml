@@ -48,10 +48,14 @@ services:
       BOSCHIFAI_DOMAIN: ${BOSCHIFAI_DOMAIN:?Set BOSCHIFAI_DOMAIN in .env}
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Site files for other stacks on this host (see the Caddyfile's import).
+      - /opt/edge-sites:/etc/caddy/sites:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
       - edge_net
+      # Shared with other stacks' apps only; boschifai's app and db are not on it.
+      - edge
     depends_on:
       - app
     logging: *logging
@@ -113,6 +117,9 @@ networks:
   # `caddy` <-> `app` only. `app` stays on `boschifai_net` too (base file) for `db`.
   edge_net:
     driver: bridge
+  # Created once on the host (docs/deploy-vps.md §2): `docker network create edge`.
+  edge:
+    external: true
 
 volumes:
   # Caddy's certificates and ACME account — losing this just means re-issuing, but keep it to stay

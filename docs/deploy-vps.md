@@ -61,6 +61,12 @@ docker compose version   # must be v2.24.4 or newer
 # Directories the deploy user owns (it can't create them itself without sudo).
 install -d -o deploy -g deploy /opt/boschifai /var/backups/boschifai
 install -m 640 -o deploy -g deploy /dev/null /var/log/boschifai-backup.log
+
+# Lets other stacks on this host sit behind this Caddy: their apps join `edge`, and their site
+# files go in /opt/edge-sites (imported by docker/caddy/Caddyfile). Both must exist before Caddy
+# starts, or `docker compose up` fails on the missing external network.
+docker network create edge
+install -d -m 755 /opt/edge-sites
 ```
 
 **Docker bypasses `ufw` for published ports.** That's why `docker-compose.prod.yml` publishes

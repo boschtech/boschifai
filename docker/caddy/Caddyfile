@@ -21,3 +21,8 @@
 
 	reverse_proxy app:8000
 }
+
+# Other sites on this host (e.g. xero-mcp). This Caddy owns 80/443, so other stacks drop a site
+# file into /opt/edge-sites on the server and join the external `edge` network. Matches nothing on
+# a fresh host, which Caddy accepts.
+import /etc/caddy/sites/*.caddy
